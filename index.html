@@ -1,155 +1,348 @@
 <!DOCTYPE html>
 <html lang="vi">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Giám Sát & Lịch Sử AQI</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <style>
-        body { font-family: 'Segoe UI', sans-serif; text-align: center; background-color: #f4f7f6; margin: 0; padding: 20px; }
-        .container { max-width: 1100px; margin: auto; }
-        .card-group { display: flex; justify-content: space-around; gap: 15px; margin-bottom: 20px; }
-        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex: 1; }
-        .value { font-size: 24px; font-weight: bold; color: #2c3e50; }
-        
-        /* Bảng lịch sử */
-        .history-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 20px; overflow-x: auto; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
-        th { background-color: #f8f9fa; color: #333; }
-        
-        /* Màu sắc cảnh báo AQI */
-        .aqi-good { color: #2ecc71; font-weight: bold; }      /* Tốt - Xanh lá */
-        .aqi-moderate { color: #f1c40f; font-weight: bold; }  /* Trung bình - Vàng */
-        .aqi-unhealthy { color: #e67e22; font-weight: bold; } /* Kém - Cam */
-        .aqi-very-unhealthy { color: #e74c3c; font-weight: bold; } /* Xấu - Đỏ */
 
-        .filter-group { margin-bottom: 20px; background: white; padding: 10px; border-radius: 10px; display: inline-block; }
-        button { padding: 8px 15px; margin: 0 5px; border: none; border-radius: 5px; cursor: pointer; background: #ecf0f1; }
-        button.active { background: #3498db; color: white; }
-    </style>
+<head>
+
+<meta charset="UTF-8">
+<title>IoT Air Monitor</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+
+body{
+margin:0;
+font-family:Segoe UI;
+display:flex;
+background:#f4f7f6;
+}
+
+/* sidebar */
+
+.sidebar{
+width:220px;
+background:#2c3e50;
+color:white;
+height:100vh;
+padding-top:20px;
+}
+
+.sidebar h2{
+text-align:center;
+}
+
+.sidebar button{
+width:100%;
+padding:15px;
+border:none;
+background:none;
+color:white;
+text-align:left;
+cursor:pointer;
+font-size:16px;
+}
+
+.sidebar button:hover{
+background:#34495e;
+}
+
+.main{
+flex:1;
+padding:20px;
+}
+
+/* card */
+
+.card-group{
+display:flex;
+gap:20px;
+}
+
+.card{
+background:white;
+padding:20px;
+border-radius:10px;
+flex:1;
+text-align:center;
+box-shadow:0 3px 5px rgba(0,0,0,0.1);
+}
+
+.value{
+font-size:28px;
+font-weight:bold;
+}
+
+/* chart */
+
+.chart-box{
+background:white;
+padding:20px;
+margin-top:20px;
+border-radius:10px;
+height:350px;
+}
+
+/* table */
+
+table{
+width:100%;
+border-collapse:collapse;
+background:white;
+margin-top:20px;
+}
+
+th,td{
+padding:10px;
+border-bottom:1px solid #ddd;
+text-align:center;
+}
+
+th{
+background:#eee;
+}
+
+.filter{
+margin-top:20px;
+}
+
+.aqi-good{color:green;font-weight:bold;}
+.aqi-moderate{color:orange;font-weight:bold;}
+.aqi-unhealthy{color:red;font-weight:bold;}
+
+#error{
+color:red;
+margin-top:10px;
+}
+
+</style>
+
 </head>
+
 <body>
 
-    <div class="container">
-        <h2>HỆ THỐNG GIÁM SÁT KHÔNG KHÍ & LỊCH SỬ</h2>
-        
-        <div class="card-group">
-            <div class="card"><div>Nhiệt độ</div><div class="value" id="temp-val">--</div></div>
-            <div class="card"><div>Độ ẩm</div><div class="value" id="humi-val">--</div></div>
-            <div class="card"><div>Bụi (mg/m³)</div><div class="value" id="dust-val">--</div></div>
-        </div>
+<div class="sidebar">
 
-        <div class="filter-group">
-            <strong>Xem lịch sử: </strong>
-            <button onclick="changeRange(3)" id="btn-3">3 Giờ</button>
-            <button onclick="changeRange(12)" id="btn-12">12 Giờ</button>
-            <button onclick="changeRange(24)" id="btn-24" class="active">24 Giờ</button>
-        </div>
+<h2>AQI Monitor</h2>
 
-        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: 350px; margin-bottom: 20px;">
-            <canvas id="airChart"></canvas>
-        </div>
+<button onclick="showPage('realtime')">Thời gian thực</button>
 
-        <div class="history-container">
-            <h3>Bảng Lịch Sử Dữ Liệu Chi Tiết</h3>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Thời gian</th>
-                        <th>Nhiệt độ (°C)</th>
-                        <th>Độ ẩm (%)</th>
-                        <th>Bụi (mg/m³)</th>
-                        <th>Chỉ số AQI</th>
-                        <th>Cảnh báo</th>
-                    </tr>
-                </thead>
-                <tbody id="history-body">
-                    </tbody>
-            </table>
-        </div>
-    </div>
+<button onclick="showPage('history')">Lịch sử dữ liệu</button>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getDatabase, ref, onValue, query, orderByKey, startAt } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+</div>
 
-        const firebaseConfig = { databaseURL: "https://forest-air-polution-default-rtdb.firebaseio.com/" };
-        const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
+<div class="main">
 
-        // --- HÀM TÍNH AQI ĐƠN GIẢN (Dựa trên nồng độ bụi PM2.5 ước tính) ---
-        // Lưu ý: Cảm biến Sharp đo mg/m3, ta cần đổi sang µg/m3 (nhân 1000)
-        function calculateAQI(dustMg) {
-            let ug = dustMg * 1000; 
-            if (ug <= 12) return { val: Math.round(ug * 50 / 12), class: 'aqi-good', msg: 'Tốt' };
-            if (ug <= 35) return { val: Math.round((ug - 12) * 50 / 23 + 50), class: 'aqi-moderate', msg: 'Trung bình' };
-            if (ug <= 55) return { val: Math.round((ug - 35) * 50 / 20 + 100), class: 'aqi-unhealthy', msg: 'Kém' };
-            return { val: Math.round((ug - 55) * 100 / 95 + 150), class: 'aqi-very-unhealthy', msg: 'Xấu/Nguy hại' };
-        }
+<!-- realtime -->
 
-        const ctx = document.getElementById('airChart').getContext('2d');
-        const airChart = new Chart(ctx, {
-            type: 'line',
-            data: { labels: [], datasets: [{ label: 'Nồng độ bụi', borderColor: '#e74c3c', data: [], fill: false }] },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
+<div id="realtime">
 
-        window.changeRange = function(hours) {
-            document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
-            document.getElementById(`btn-${hours}`).classList.add('active');
+<h2>Dữ liệu thời gian thực</h2>
 
-            const startTime = new Date(Date.now() - (hours * 60 * 60 * 1000)).toISOString();
-            const airRef = query(ref(db, "AirQuality"), orderByKey(), startAt(startTime));
+<div class="card-group">
 
-            onValue(airRef, (snapshot) => {
-                const labels = [];
-                const values = [];
-                const tableBody = document.getElementById("history-body");
-                tableBody.innerHTML = ""; // Xóa bảng cũ
-                let lastData = null;
+<div class="card">
+Nhiệt độ
+<div id="temp-val" class="value">--</div>
+</div>
 
-                // Duyệt ngược để hiện dữ liệu mới nhất lên đầu bảng
-                const dataArray = [];
-                snapshot.forEach(child => { dataArray.push(child.val()); });
-                dataArray.reverse(); 
+<div class="card">
+Độ ẩm
+<div id="humi-val" class="value">--</div>
+</div>
 
-                dataArray.forEach(d => {
-                    if (d.dust !== undefined && d.dust !== null) {
-                        const aqi = calculateAQI(d.dust);
-                        const timeStr = d.time ? d.time.replace('T', ' ').substring(0, 19) : "--";
+<div class="card">
+Bụi
+<div id="dust-val" class="value">--</div>
+</div>
 
-                        // Thêm vào biểu đồ (vẫn theo thứ tự xuôi thời gian)
-                        labels.unshift(timeStr.substring(11, 16));
-                        values.unshift(d.dust);
+</div>
 
-                        // Thêm vào bảng
-                        let row = `<tr>
-                            <td>${timeStr}</td>
-                            <td>${d.temp.toFixed(1)}</td>
-                            <td>${d.humi.toFixed(0)}</td>
-                            <td>${Number(d.dust).toFixed(3)}</td>
-                            <td class="${aqi.class}">${aqi.val}</td>
-                            <td class="${aqi.class}">${aqi.msg}</td>
-                        </tr>`;
-                        tableBody.innerHTML += row;
-                        if(!lastData) lastData = d;
-                    }
-                });
+</div>
+<div id="history" style="display:none">
 
-                airChart.data.labels = labels.reverse();
-                airChart.data.datasets[0].data = values.reverse();
-                airChart.update();
+<h2>Lịch sử dữ liệu</h2>
 
-                if(lastData) {
-                    document.getElementById("temp-val").innerText = lastData.temp.toFixed(1) + "°C";
-                    document.getElementById("humi-val").innerText = lastData.humi.toFixed(0) + "%";
-                    document.getElementById("dust-val").innerText = Number(lastData.dust).toFixed(3);
-                }
-            });
-        }
+<div class="filter">
 
-        changeRange(24);
-    </script>
+<button onclick="changeRange(3)">3 giờ</button>
+<button onclick="changeRange(12)">12 giờ</button>
+<button onclick="changeRange(24)">24 giờ</button>
+
+<br><br>
+
+Tùy chỉnh
+
+<input type="datetime-local" id="start">
+<input type="datetime-local" id="end">
+
+<button onclick="customRange()">Xem</button>
+
+</div>
+
+<div class="chart-box">
+<canvas id="chart"></canvas>
+</div>
+
+<div id="error"></div>
+
+<table>
+
+<thead>
+
+<tr>
+<th>Thời gian</th>
+<th>Nhiệt độ</th>
+<th>Độ ẩm</th>
+<th>Bụi</th>
+<th>AQI</th>
+<th>Cảnh báo</th>
+</tr>
+
+</thead>
+
+<tbody id="history-body"></tbody>
+
+</table>
+
+</div>
+
+</div>
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js"
+
+import {
+getDatabase,
+ref,
+onValue,
+query,
+orderByKey,
+startAt,
+endAt
+}
+from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js"
+
+const firebaseConfig={
+databaseURL:"https://forest-air-polution-default-rtdb.firebaseio.com/"
+}
+
+const app=initializeApp(firebaseConfig)
+
+const db=getDatabase(app)
+
+function AQI(dust){
+
+let ug=dust*1000
+
+if(ug<=12)
+return {v:50,c:"aqi-good",m:"Tốt"}
+
+if(ug<=35)
+return {v:100,c:"aqi-moderate",m:"Trung bình"}
+
+return {v:150,c:"aqi-unhealthy",m:"Kém"}
+
+}
+const ctx=document.getElementById("chart")
+
+const chart=new Chart(ctx,{
+type:"line",
+data:{
+labels:[],
+datasets:[{
+label:"Bụi",
+data:[]
+}]
+}
+})
+function loadData(q){
+
+onValue(q,(snapshot)=>{
+
+let body=document.getElementById("history-body")
+
+body.innerHTML=""
+
+let labels=[]
+let values=[]
+
+snapshot.forEach(child=>{
+
+let d=child.val()
+
+if(!d.dust || d.dust==0){
+
+document.getElementById("error").innerText="Lỗi cảm biến bụi"
+
+return
+}
+
+let aqi=AQI(d.dust)
+
+let row=`
+<tr>
+<td>${d.time}</td>
+<td>${d.temp.toFixed(1)}</td>
+<td>${d.humi.toFixed(0)}</td>
+<td>${d.dust.toFixed(3)}</td>
+<td class="${aqi.c}">${aqi.v}</td>
+<td class="${aqi.c}">${aqi.m}</td>
+</tr>
+`
+
+body.innerHTML+=row
+
+labels.push(d.time.substring(11,16))
+values.push(d.dust)
+
+})
+
+chart.data.labels=labels
+chart.data.datasets[0].data=values
+chart.update()
+
+})
+
+}
+window.changeRange=function(h){
+
+let start=new Date(Date.now()-h*3600000).toISOString()
+
+const q=query(
+ref(db,"AirQuality"),
+orderByKey(),
+startAt(start)
+)
+
+loadData(q)
+
+}
+window.customRange=function(){
+
+let s=document.getElementById("start").value
+let e=document.getElementById("end").value
+
+const q=query(
+ref(db,"AirQuality"),
+orderByKey(),
+startAt(s),
+endAt(e)
+)
+
+loadData(q)
+
+}
+window.showPage=function(p){
+
+document.getElementById("realtime").style.display="none"
+document.getElementById("history").style.display="none"
+
+document.getElementById(p).style.display="block"
+
+}
+changeRange(24)
+
+</script>
+
 </body>
 </html>
