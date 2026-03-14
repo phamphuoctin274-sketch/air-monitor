@@ -2,57 +2,133 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <title>Air Monitor Dashboard</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Air Monitor Dashboard w/ Chart</title>
+    
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 50px; background-color: #f4f4f4; }
-        .card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1); display: inline-block; }
-        .value { font-size: 24px; font-weight: bold; color: #2c3e50; }
-        .label { color: #7f8c8d; margin-bottom: 10px; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f0f2f5; padding: 20px; margin: 0; }
+        .container { max-width: 1000px; margin: auto; }
+        
+        /* Style cho khối hiển thị số điện tử */
+        .card-group { display: flex; justify-content: space-around; margin-bottom: 20px; flex-wrap: wrap; }
+        .card { background: white; padding: 15px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); width: 30%; min-width: 250px; margin: 10px; }
+        .value { font-size: 32px; font-weight: bold; color: #2c3e50; }
+        .label { color: #7f8c8d; font-size: 16px; margin-bottom: 5px; }
+        .dust-color { color: #e74c3c; } /* Màu đỏ cho bụi */
+        
+        /* Style cho khối biểu đồ */
+        .chart-card { background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.05); }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h1>Hệ Thống Theo Dõi Không Khí</h1>
-        
-        <div class="label">Nhiệt độ:</div>
-        <div class="value"><span id="temp">--</span> °C</div>
-        <hr>
-        <div class="label">Độ ẩm:</div>
-        <div class="value"><span id="humi">--</span> %</div>
-        <hr>
-        <div class="label">Nồng độ bụi:</div>
-        <div class="value"><span id="dust">--</span> mg/m³</div>
-        <p id="time" style="font-size: 12px; color: grey;"></p>
+    <div class="container">
+        <h1>Hệ Thống Theo Dõi Không Khí Rừng</h1>
+        <p id="time-status" style="color: grey; font-size: 14px;">Đang đợi dữ liệu...</p>
+
+        <div class="card-group">
+            <div class="card">
+                <div class="label">Nhiệt độ</div>
+                <div class="value"><span id="temp">--</span> °C</div>
+            </div>
+            <div class="card">
+                <div class="label">Độ ẩm</div>
+                <div class="value"><span id="humi">--</span> %</div>
+            </div>
+            <div class="card">
+                <div class="label">Nồng độ bụi</div>
+                <div class="value dust-color"><span id="dust">--</span> mg/m³</div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>Biểu đồ nồng độ bụi 15 lần gần nhất</h3>
+            <canvas id="dustChart"></canvas>
+        </div>
     </div>
 
     <script>
-        // Cấu hình Firebase
+        // 1. CẤU HÌNH FIREBASE (Giữ nguyên của bạn)
         const firebaseConfig = {
             databaseURL: "https://forest-air-polution-default-rtdb.firebaseio.com/"
         };
-
-        // Khởi tạo Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
 
-        // Lấy dữ liệu mới nhất từ THƯ MỤC GỐC (vì ảnh database của bạn dữ liệu nằm ở ngoài cùng)
-        // Nếu sau này bạn đổi ESP32 gửi vào "/AirQuality" thì sửa dấu "/" thành "/AirQuality"
-        db.ref("/").limitToLast(1).on("value", (snapshot) => {
+        // 2. KHỞI TẠO BIỂU ĐỒ (CHART.JS)
+        const ctx = document.getElementById('dustChart').getContext('2d');
+        
+        // Tạo các mảng trống để chứa dữ liệu vẽ
+        let dustLabels = []; // Chứa thời gian (trục X)
+        let dustValues = []; // Chứa nồng độ bụi (trục Y)
+
+        const dustChart = new Chart(ctx, {
+            type: 'line', // Loại biểu đồ đường
+            data: {
+                labels: dustLabels, // Trục hoành
+                datasets: [{
+                    label: 'Nồng độ bụi (mg/m³)',
+                    data: dustValues, // Trục tung
+                    borderColor: '#e74c3c', // Màu đường đỏ
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)', // Màu nền đỏ nhạt
+                    borderWidth: 2,
+                    tension: 0.4, // Độ bo cong của đường
+                    fill: true // Tô màu vùng dưới đường
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: true, // Trục Y bắt đầu từ 0
+                        title: { display: true, text: 'mg/m³' }
+                    },
+                    x: {
+                        title: { display: true, text: 'Thời gian' }
+                    }
+                }
+            }
+        });
+
+        // 3. LẤY DỮ LIỆU TỪ FIREBASE (CHỈ TRONG THƯ MỤC GỐC "/")
+        // Chúng ta lấy 15 bản ghi cuối cùng để vẽ biểu đồ
+        db.ref("/").limitToLast(15).on("value", (snapshot) => {
+            // Xóa dữ liệu cũ trong mảng vẽ
+            dustLabels.length = 0;
+            dustValues.length = 0;
+            
+            let lastData = null;
+
+            // Duyệt qua 15 bản ghi gần nhất
             snapshot.forEach((childSnapshot) => {
                 const data = childSnapshot.val();
                 
-                // Cập nhật lên giao diện
-                document.getElementById("temp").innerText = data.temp !== undefined ? data.temp : "--";
-                document.getElementById("humi").innerText = data.humi !== undefined ? data.humi : "--";
-                document.getElementById("dust").innerText = data.dust !== undefined ? data.dust.toFixed(3) : "--";
-                document.getElementById("time").innerText = "Cập nhật lúc: " + (data.time || "Không rõ");
-                
-                console.log("Dữ liệu mới:", data);
+                // Kiểm tra dữ liệu hợp lệ
+                if (data.dust !== undefined && data.time) {
+                    // Lấy giờ:phút:giây từ timestamp (ví dụ 10:30:00)
+                    let timeStr = data.time.split('T')[1]; 
+                    
+                    dustLabels.push(timeStr); // Thêm giờ vào trục X
+                    dustValues.push(data.dust); // Thêm số bụi vào trục Y
+                    lastData = data; // Lưu lại bản ghi cuối cùng
+                }
             });
+
+            // Cập nhật biểu đồ
+            dustChart.update();
+
+            // Cập nhật số điện tử (Real-time) dựa trên bản ghi cuối cùng
+            if (lastData) {
+                document.getElementById("temp").innerText = lastData.temp.toFixed(1);
+                document.getElementById("humi").innerText = lastData.humi.toFixed(0);
+                document.getElementById("dust").innerText = lastData.dust.toFixed(3);
+                document.getElementById("time-status").innerText = "Cập nhật cuối lúc: " + new Date().toLocaleTimeString();
+            }
         });
     </script>
 
