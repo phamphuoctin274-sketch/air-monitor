@@ -1,318 +1,354 @@
 <!DOCTYPE html>
 <html lang="vi">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IoT Air Monitor Pro</title>
+    <title>Hệ Thống Kiểm Soát Không Khí Pro</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         :root {
-            --primary: #3498db;
-            --dark: #2c3e50;
-            --light: #ecf0f1;
-            --danger: #e74c3c;
-            --success: #2ecc71;
-            --warning: #f1c40f;
+            --bg-body: #f8fafc;
+            --bg-sidebar: #ffffff;
+            --primary: #0ea5e9;
+            --text-main: #1e293b;
+            --text-sub: #64748b;
+            --card-bg: #ffffff;
+            --border: #e2e8f0;
+            --success: #22c55e;
+            --warning: #f59e0b;
+            --danger: #ef4444;
         }
 
         body {
             margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background: var(--bg-body);
+            color: var(--text-main);
             display: flex;
-            background: #f0f2f5;
-            color: #333;
         }
 
         /* Sidebar hiện đại */
         .sidebar {
-            width: 250px;
-            background: var(--dark);
-            color: white;
+            width: 260px;
+            background: var(--bg-sidebar);
             height: 100vh;
-            padding: 30px 0;
+            border-right: 1px solid var(--border);
             position: fixed;
-            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
         }
 
-        .sidebar h2 {
-            text-align: center;
-            font-size: 22px;
-            margin-bottom: 40px;
-            letter-spacing: 1px;
+        .sidebar-header {
+            padding: 30px 20px;
+            font-size: 20px;
+            font-weight: 800;
+            color: var(--primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-menu { flex: 1; padding: 10px; }
+
+        .nav-item {
+            width: 100%;
+            padding: 12px 15px;
+            margin-bottom: 5px;
+            border: none;
+            background: none;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-sub);
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: #f0f9ff;
             color: var(--primary);
         }
 
-        .sidebar button {
-            width: 90%;
-            margin: 5px 5%;
-            padding: 12px 20px;
-            border: none;
-            background: none;
-            color: #bdc3c7;
-            text-align: left;
-            cursor: pointer;
-            font-size: 15px;
-            border-radius: 8px;
-            transition: 0.3s;
-        }
-
-        .sidebar button:hover, .sidebar button.active {
-            background: rgba(52, 152, 219, 0.2);
-            color: white;
-            border-left: 4px solid var(--primary);
-        }
-
-        .main {
+        /* Main Content */
+        .main-content {
+            margin-left: 260px;
             flex: 1;
-            margin-left: 250px;
-            padding: 30px;
-            min-height: 100vh;
+            padding: 40px;
         }
 
-        h2 { color: var(--dark); margin-bottom: 25px; }
-
-        /* Card Group */
-        .card-group { display: flex; gap: 20px; margin-bottom: 30px; }
-
-        .card {
-            background: white;
-            padding: 25px;
-            border-radius: 15px;
-            flex: 1;
-            text-align: center;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            transition: transform 0.3s;
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
         }
 
-        .card:hover { transform: translateY(-5px); }
-        .card .label { font-size: 14px; color: #7f8c8d; text-transform: uppercase; margin-bottom: 10px; }
-        .value { font-size: 35px; font-weight: bold; color: var(--dark); }
-
-        /* Filter & Form Pro */
-        .filter {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        /* Status Indicators */
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            background: #f1f5f9;
             display: flex;
             align-items: center;
-            gap: 15px;
-            flex-wrap: wrap;
+            gap: 6px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
+
+        /* Dashboard Cards */
+        .grid-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
         }
 
-        .btn-range {
-            padding: 10px 18px;
-            border: 1px solid #ddd;
-            background: white;
+        .stat-card {
+            background: var(--card-bg);
+            padding: 24px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+        }
+
+        .stat-label { color: var(--text-sub); font-size: 14px; margin-bottom: 8px; }
+        .stat-value { font-size: 28px; font-weight: 700; }
+
+        /* Table & Chart Containers */
+        .section-container {
+            background: var(--card-bg);
+            border-radius: 16px;
+            border: 1px solid var(--border);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        /* Filter Pro */
+        .filter-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 16px;
             border-radius: 8px;
+            border: 1px solid var(--border);
+            background: white;
             cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
             transition: 0.2s;
         }
 
-        .btn-range:hover { background: var(--primary); color: white; border-color: var(--primary); }
+        .btn-primary { background: var(--primary); color: white; border: none; }
+        .btn:hover { border-color: var(--primary); color: var(--primary); }
+        .btn-primary:hover { opacity: 0.9; color: white; }
 
         input[type="datetime-local"] {
             padding: 9px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border);
             border-radius: 8px;
             outline: none;
         }
 
-        .btn-view {
-            background: var(--primary);
-            color: white;
-            padding: 10px 25px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
+        /* Table Design */
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th { text-align: left; padding: 12px; color: var(--text-sub); font-size: 13px; border-bottom: 2px solid var(--border); }
+        td { padding: 16px 12px; border-bottom: 1px solid var(--border); font-size: 14px; }
+
+        .aqi-pill {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 12px;
             font-weight: 600;
         }
+        .good { background: #dcfce7; color: #166534; }
+        .moderate { background: #fef9c3; color: #854d0e; }
+        .unhealthy { background: #fee2e2; color: #991b1b; }
 
-        /* Chart & Table */
-        .chart-box {
-            background: white;
-            padding: 20px;
-            border-radius: 15px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            height: 400px;
-            margin-bottom: 30px;
-        }
-
-        .table-container {
-            background: white;
-            padding: 10px;
-            border-radius: 15px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-            overflow: hidden;
-        }
-
-        table { width: 100%; border-collapse: collapse; }
-        th { background: #f8f9fa; color: #7f8c8d; font-weight: 600; text-transform: uppercase; font-size: 12px; padding: 15px; }
-        td { padding: 15px; border-bottom: 1px solid #eee; text-align: center; font-size: 14px; }
-        tr:hover { background: #fcfcfc; }
-
-        /* AQI Badges */
-        .badge { padding: 5px 12px; border-radius: 20px; font-size: 12px; display: inline-block; }
-        .aqi-good { background: #e8f8f0; color: var(--success); }
-        .aqi-moderate { background: #fff9e6; color: var(--warning); }
-        .aqi-unhealthy { background: #fdeaea; color: var(--danger); }
-
-        #error { color: var(--danger); font-weight: bold; margin-bottom: 15px; }
     </style>
 </head>
-
 <body>
 
     <div class="sidebar">
-        <h2>AIR QUALITY</h2>
-        <button id="btn-realtime" onclick="showPage('realtime')" class="active">📊 Thời gian thực</button>
-        <button id="btn-history" onclick="showPage('history')">📜 Lịch sử dữ liệu</button>
+        <div class="sidebar-header">
+            <i class="fas fa-wind"></i>
+            <span>AIR MONITOR</span>
+        </div>
+        <div class="nav-menu">
+            <button class="nav-item active" onclick="showPage('realtime')">
+                <i class="fas fa-chart-line"></i> Dashboard
+            </button>
+            <button class="nav-item" onclick="showPage('history')">
+                <i class="fas fa-database"></i> Live Data & Logs
+            </button>
+            <button class="nav-item" onclick="exportToCSV()">
+                <i class="fas fa-file-export"></i> Export CSV
+            </button>
+        </div>
     </div>
 
-    <div class="main">
+    <div class="main-content">
+        <header>
+            <h1 id="page-title">Dashboard</h1>
+            <div style="display: flex; gap: 10px;">
+                <div class="status-badge"><div class="status-dot"></div> MQTT Connected</div>
+                <div class="status-badge"><div class="status-dot"></div> Firebase Live</div>
+            </div>
+        </header>
+
         <div id="realtime">
-            <h2>Chỉ số hiện tại</h2>
-            <div class="card-group">
-                <div class="card">
-                    <div class="label">Nhiệt độ</div>
-                    <div id="temp-val" class="value">--</div><small>°C</small>
+            <div class="grid-stats">
+                <div class="stat-card">
+                    <div class="stat-label">TEMPERATURE</div>
+                    <div class="stat-value"><span id="temp-val">--</span>°C</div>
                 </div>
-                <div class="card">
-                    <div class="label">Độ ẩm</div>
-                    <div id="humi-val" class="value">--</div><small>%</small>
+                <div class="stat-card">
+                    <div class="stat-label">HUMIDITY</div>
+                    <div class="stat-value"><span id="humi-val">--</span>%</div>
                 </div>
-                <div class="card" style="border-bottom: 4px solid var(--danger);">
-                    <div class="label">Bụi PM2.5</div>
-                    <div id="dust-val" class="value">--</div><small>mg/m³</small>
+                <div class="stat-card">
+                    <div class="stat-label">DUST DENSITY (PM2.5)</div>
+                    <div class="stat-value" style="color: var(--primary);"><span id="dust-val">--</span> <small style="font-size: 14px;">mg/m³</small></div>
+                </div>
+            </div>
+
+            <div class="section-container">
+                <h3 style="margin-top:0">Biểu đồ xu hướng</h3>
+                <div style="height: 350px;">
+                    <canvas id="mainChart"></canvas>
                 </div>
             </div>
         </div>
 
         <div id="history" style="display:none">
-            <h2>Tra cứu lịch sử</h2>
-            <div id="error"></div>
-            
-            <div class="filter">
-                <button class="btn-range" onclick="changeRange(3)">3 giờ</button>
-                <button class="btn-range" onclick="changeRange(12)">12 giờ</button>
-                <button class="btn-range" onclick="changeRange(24)">24 giờ</button>
-                <span style="color:#ccc">|</span>
-                <input type="datetime-local" id="start">
-                <span>đến</span>
-                <input type="datetime-local" id="end">
-                <button class="btn-view" onclick="customRange()">🔍 Xem</button>
-            </div>
+            <div class="section-container">
+                <div class="filter-bar">
+                    <button class="btn" onclick="changeRange(3)">3 Giờ</button>
+                    <button class="btn" onclick="changeRange(24)">24 Giờ</button>
+                    <input type="datetime-local" id="start-date">
+                    <span>đến</span>
+                    <input type="datetime-local" id="end-date">
+                    <button class="btn btn-primary" onclick="customSearch()">Áp dụng bộ lọc</button>
+                </div>
 
-            <div class="chart-box">
-                <canvas id="chart"></canvas>
-            </div>
-
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>Thời gian</th>
-                            <th>Nhiệt độ</th>
-                            <th>Độ ẩm</th>
-                            <th>Bụi</th>
-                            <th>AQI</th>
-                            <th>Cảnh báo</th>
-                        </tr>
-                    </thead>
-                    <tbody id="history-body"></tbody>
-                </table>
+                <div style="overflow-x: auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>TIME</th>
+                                <th>TEMP (°C)</th>
+                                <th>HUMI (%)</th>
+                                <th>DUST (mg/m³)</th>
+                                <th>AQI</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js"
-        import { getDatabase, ref, onValue, query, orderByKey, startAt, endAt } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js"
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
+        import { getDatabase, ref, onValue, query, orderByKey, startAt, endAt } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
         const firebaseConfig = { databaseURL: "https://forest-air-polution-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Hàm tính AQI (đã sửa lại để bao quát hơn)
-        function AQI(dust) {
+        // Khởi tạo Chart
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        const mainChart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: [], datasets: [{ label: 'Bụi', data: [], borderColor: '#0ea5e9', tension: 0.4, fill: true, backgroundColor: 'rgba(14, 165, 233, 0.05)' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+        });
+
+        function getAQIInfo(dust) {
             let ug = dust * 1000;
-            if (ug <= 12) return { v: Math.round(ug*50/12), c: "aqi-good", m: "Tốt" };
-            if (ug <= 35) return { v: Math.round(50 + (ug-12)*50/23), c: "aqi-moderate", m: "Trung bình" };
-            return { v: Math.round(100 + (ug-35)*50/20), c: "aqi-unhealthy", m: "Kém" };
+            if(ug <= 12) return { val: Math.round(ug*50/12), class: 'good', text: 'Tốt' };
+            if(ug <= 35) return { val: Math.round(50+(ug-12)*2), class: 'moderate', text: 'Trung bình' };
+            return { val: Math.round(100+(ug-35)*3), class: 'unhealthy', text: 'Kém' };
         }
 
-        const ctx = document.getElementById("chart");
-        const chart = new Chart(ctx, {
-            type: "line",
-            data: { labels: [], datasets: [{ label: "Nồng độ bụi (mg/m³)", data: [], borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', fill: true, tension: 0.4 }] },
-            options: { responsive: true, maintainAspectRatio: false }
-        });
-
-        // Xử lý trang thời gian thực
+        // Lấy dữ liệu Realtime
         onValue(ref(db, "AirQuality"), (snapshot) => {
-            let lastKey = "";
-            snapshot.forEach(child => { lastKey = child.key; });
-            if(lastKey) {
-                const d = snapshot.val()[lastKey];
-                document.getElementById("temp-val").innerText = d.temp.toFixed(1);
-                document.getElementById("humi-val").innerText = d.humi.toFixed(0);
-                document.getElementById("dust-val").innerText = d.dust.toFixed(3);
-            }
+            const data = snapshot.val();
+            const keys = Object.keys(data);
+            const last = data[keys[keys.length - 1]];
+            
+            document.getElementById('temp-val').innerText = last.temp.toFixed(1);
+            document.getElementById('humi-val').innerText = last.humi.toFixed(0);
+            document.getElementById('dust-val').innerText = last.dust.toFixed(3);
         });
 
-        function loadData(q) {
+        // Hàm tải dữ liệu bảng
+        window.loadLogs = function(q) {
             onValue(q, (snapshot) => {
-                let body = document.getElementById("history-body");
-                body.innerHTML = "";
+                const tbody = document.getElementById('log-table');
+                tbody.innerHTML = "";
                 let labels = []; let values = [];
-                let hasError = false;
 
                 snapshot.forEach(child => {
-                    let d = child.val();
-                    if (!d.dust || d.dust <= 0) { hasError = true; return; }
-                    let aqi = AQI(d.dust);
-                    let row = `<tr>
-                        <td>${d.time.replace('T',' ')}</td>
-                        <td>${d.temp.toFixed(1)}°C</td>
-                        <td>${d.humi.toFixed(0)}%</td>
+                    const d = child.val();
+                    const aqi = getAQIInfo(d.dust);
+                    const row = `<tr>
+                        <td>${d.time.replace('T', ' ')}</td>
+                        <td>${d.temp.toFixed(1)}</td>
+                        <td>${d.humi.toFixed(0)}</td>
                         <td>${d.dust.toFixed(3)}</td>
-                        <td><span class="badge ${aqi.c}">${aqi.v}</span></td>
-                        <td><span class="badge ${aqi.c}">${aqi.m}</span></td>
+                        <td><span class="aqi-pill ${aqi.class}">${aqi.val}</span></td>
+                        <td><span class="aqi-pill ${aqi.class}">${aqi.text}</span></td>
                     </tr>`;
-                    body.innerHTML = row + body.innerHTML; // Hiện mới nhất lên đầu
+                    tbody.innerHTML = row + tbody.innerHTML;
                     labels.push(d.time.substring(11, 16));
                     values.push(d.dust);
                 });
 
-                document.getElementById("error").innerText = hasError ? "⚠️ Phát hiện một số dữ liệu lỗi từ cảm biến" : "";
-                chart.data.labels = labels;
-                chart.data.datasets[0].data = values;
-                chart.update();
+                mainChart.data.labels = labels;
+                mainChart.data.datasets[0].data = values;
+                mainChart.update();
             });
         }
 
-        window.changeRange = function (h) {
-            let start = new Date(Date.now() - h * 3600000).toISOString();
-            loadData(query(ref(db, "AirQuality"), orderByKey(), startAt(start)));
+        window.changeRange = (h) => loadLogs(query(ref(db, "AirQuality"), orderByKey(), startAt(new Date(Date.now() - h*3600000).toISOString())));
+        window.customSearch = () => loadLogs(query(ref(db, "AirQuality"), orderByKey(), startAt(document.getElementById('start-date').value), endAt(document.getElementById('end-date').value)));
+
+        window.showPage = function(p) {
+            document.getElementById('realtime').style.display = p === 'realtime' ? 'block' : 'none';
+            document.getElementById('history').style.display = p === 'history' ? 'block' : 'none';
+            document.getElementById('page-title').innerText = p === 'realtime' ? 'Dashboard' : 'Data Logs';
+            document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+            event.currentTarget.classList.add('active');
         }
 
-        window.customRange = function () {
-            let s = document.getElementById("start").value;
-            let e = document.getElementById("end").value;
-            loadData(query(ref(db, "AirQuality"), orderByKey(), startAt(s), endAt(e)));
+        // Xuất CSV
+        window.exportToCSV = function() {
+            let csv = "Time,Temp,Humi,Dust\n";
+            const rows = document.querySelectorAll("#log-table tr");
+            rows.forEach(row => {
+                const cols = row.querySelectorAll("td");
+                csv += `${cols[0].innerText},${cols[1].innerText},${cols[2].innerText},${cols[3].innerText}\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.setAttribute('href', url);
+            a.setAttribute('download', 'air_data.csv');
+            a.click();
         }
 
-        window.showPage = function (p) {
-            document.getElementById("realtime").style.display = "none";
-            document.getElementById("history").style.display = "none";
-            document.getElementById("btn-realtime").classList.remove("active");
-            document.getElementById("btn-history").classList.remove("active");
-            
-            document.getElementById(p).style.display = "block";
-            document.getElementById("btn-" + p).classList.add("active");
-        }
         changeRange(24);
     </script>
 </body>
