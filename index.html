@@ -3,123 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Thông Tin Không Khí</title>
+    <title>Hệ Thống Giám Sát & Lịch Sử AQI</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background-color: #f4f7f6; margin: 0; padding: 20px; }
-        .container { max-width: 900px; margin: auto; }
-        .card-group { display: flex; justify-content: space-around; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
-        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex: 1; min-width: 200px; }
-        .value { font-size: 32px; font-weight: bold; color: #2c3e50; margin-top: 10px; }
-        .label { color: #7f8c8d; text-transform: uppercase; font-size: 13px; font-weight: 600; }
-        .chart-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        #dust-val { color: #e74c3c; }
-        .status { font-size: 12px; color: #95a5a6; margin-top: 15px; }
+        body { font-family: 'Segoe UI', sans-serif; text-align: center; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .container { max-width: 1100px; margin: auto; }
+        .card-group { display: flex; justify-content: space-around; gap: 15px; margin-bottom: 20px; }
+        .card { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); flex: 1; }
+        .value { font-size: 24px; font-weight: bold; color: #2c3e50; }
+        
+        /* Bảng lịch sử */
+        .history-container { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-top: 20px; overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: center; }
+        th { background-color: #f8f9fa; color: #333; }
+        
+        /* Màu sắc cảnh báo AQI */
+        .aqi-good { color: #2ecc71; font-weight: bold; }      /* Tốt - Xanh lá */
+        .aqi-moderate { color: #f1c40f; font-weight: bold; }  /* Trung bình - Vàng */
+        .aqi-unhealthy { color: #e67e22; font-weight: bold; } /* Kém - Cam */
+        .aqi-very-unhealthy { color: #e74c3c; font-weight: bold; } /* Xấu - Đỏ */
+
+        .filter-group { margin-bottom: 20px; background: white; padding: 10px; border-radius: 10px; display: inline-block; }
+        button { padding: 8px 15px; margin: 0 5px; border: none; border-radius: 5px; cursor: pointer; background: #ecf0f1; }
+        button.active { background: #3498db; color: white; }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <h2 style="color: #2c3e50; margin-bottom: 30px;">HỆ THỐNG GIÁM SÁT & DỰ BÁO KHÔNG KHÍ</h2>
+        <h2>HỆ THỐNG GIÁM SÁT KHÔNG KHÍ & LỊCH SỬ</h2>
         
         <div class="card-group">
-            <div class="card">
-                <div class="label">Nhiệt độ</div>
-                <div class="value"><span id="temp-val">--</span><small>°C</small></div>
-            </div>
-            <div class="card">
-                <div class="label">Độ ẩm</div>
-                <div class="value"><span id="humi-val">--</span><small>%</small></div>
-            </div>
-            <div class="card">
-                <div class="label">Bụi (PM2.5)</div>
-                <div class="value"><span id="dust-val">--</span><small style="font-size: 14px;"> mg/m³</small></div>
-            </div>
+            <div class="card"><div>Nhiệt độ</div><div class="value" id="temp-val">--</div></div>
+            <div class="card"><div>Độ ẩm</div><div class="value" id="humi-val">--</div></div>
+            <div class="card"><div>Bụi (mg/m³)</div><div class="value" id="dust-val">--</div></div>
         </div>
 
-        <div class="chart-container">
+        <div class="filter-group">
+            <strong>Xem lịch sử: </strong>
+            <button onclick="changeRange(3)" id="btn-3">3 Giờ</button>
+            <button onclick="changeRange(12)" id="btn-12">12 Giờ</button>
+            <button onclick="changeRange(24)" id="btn-24" class="active">24 Giờ</button>
+        </div>
+
+        <div style="background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); height: 350px; margin-bottom: 20px;">
             <canvas id="airChart"></canvas>
         </div>
-        <div id="status" class="status">Đang kết nối cơ sở dữ liệu...</div>
+
+        <div class="history-container">
+            <h3>Bảng Lịch Sử Dữ Liệu Chi Tiết</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Thời gian</th>
+                        <th>Nhiệt độ (°C)</th>
+                        <th>Độ ẩm (%)</th>
+                        <th>Bụi (mg/m³)</th>
+                        <th>Chỉ số AQI</th>
+                        <th>Cảnh báo</th>
+                    </tr>
+                </thead>
+                <tbody id="history-body">
+                    </tbody>
+            </table>
+        </div>
     </div>
 
     <script type="module">
-        // Nhúng Firebase v10 kiểu Module - Khắc phục lỗi Uncaught (in promise)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-app.js";
-        import { getDatabase, ref, onValue, query, limitToLast } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
+        import { getDatabase, ref, onValue, query, orderByKey, startAt } from "https://www.gstatic.com/firebasejs/10.8.1/firebase-database.js";
 
-        // Cấu hình từ Firebase của bạn
-        const firebaseConfig = {
-            databaseURL: "https://forest-air-polution-default-rtdb.firebaseio.com/"
-        };
-
+        const firebaseConfig = { databaseURL: "https://forest-air-polution-default-rtdb.firebaseio.com/" };
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        // Khởi tạo Biểu đồ Chart.js
+        // --- HÀM TÍNH AQI ĐƠN GIẢN (Dựa trên nồng độ bụi PM2.5 ước tính) ---
+        // Lưu ý: Cảm biến Sharp đo mg/m3, ta cần đổi sang µg/m3 (nhân 1000)
+        function calculateAQI(dustMg) {
+            let ug = dustMg * 1000; 
+            if (ug <= 12) return { val: Math.round(ug * 50 / 12), class: 'aqi-good', msg: 'Tốt' };
+            if (ug <= 35) return { val: Math.round((ug - 12) * 50 / 23 + 50), class: 'aqi-moderate', msg: 'Trung bình' };
+            if (ug <= 55) return { val: Math.round((ug - 35) * 50 / 20 + 100), class: 'aqi-unhealthy', msg: 'Kém' };
+            return { val: Math.round((ug - 55) * 100 / 95 + 150), class: 'aqi-very-unhealthy', msg: 'Xấu/Nguy hại' };
+        }
+
         const ctx = document.getElementById('airChart').getContext('2d');
         const airChart = new Chart(ctx, {
             type: 'line',
-            data: {
-                labels: [],
-                datasets: [{
-                    label: 'Nồng độ bụi thực tế',
-                    borderColor: '#e74c3c',
-                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
-                    data: [],
-                    fill: true,
-                    tension: 0.4
-                }]
-            },
-            options: {
-                responsive: true,
-                scales: {
-                    y: { beginAtZero: true, title: { display: true, text: 'mg/m³' } }
-                }
-            }
+            data: { labels: [], datasets: [{ label: 'Nồng độ bụi', borderColor: '#e74c3c', data: [], fill: false }] },
+            options: { responsive: true, maintainAspectRatio: false }
         });
 
-        // Lắng nghe dữ liệu tại /AirQuality (Theo code ESP32 của bạn)
-        const airRef = query(ref(db, "AirQuality"), limitToLast(15));
-        
-        onValue(airRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const dataObj = snapshot.val();
+        window.changeRange = function(hours) {
+            document.querySelectorAll('button').forEach(btn => btn.classList.remove('active'));
+            document.getElementById(`btn-${hours}`).classList.add('active');
+
+            const startTime = new Date(Date.now() - (hours * 60 * 60 * 1000)).toISOString();
+            const airRef = query(ref(db, "AirQuality"), orderByKey(), startAt(startTime));
+
+            onValue(airRef, (snapshot) => {
                 const labels = [];
                 const values = [];
-                let lastEntry = null;
+                const tableBody = document.getElementById("history-body");
+                tableBody.innerHTML = ""; // Xóa bảng cũ
+                let lastData = null;
 
-                // Duyệt qua các ID tự động
-                Object.keys(dataObj).forEach(key => {
-                    const entry = dataObj[key];
-                    if (entry.dust !== undefined) {
-                        // Lấy giờ phút giây từ time (2026-03-14T10:30:00 -> 10:30:00)
-                        let timeLabel = entry.time ? entry.time.split('T')[1] : "";
-                        labels.push(timeLabel);
-                        values.push(entry.dust);
-                        lastEntry = entry;
+                // Duyệt ngược để hiện dữ liệu mới nhất lên đầu bảng
+                const dataArray = [];
+                snapshot.forEach(child => { dataArray.push(child.val()); });
+                dataArray.reverse(); 
+
+                dataArray.forEach(d => {
+                    if (d.dust !== undefined && d.dust !== null) {
+                        const aqi = calculateAQI(d.dust);
+                        const timeStr = d.time ? d.time.replace('T', ' ').substring(0, 19) : "--";
+
+                        // Thêm vào biểu đồ (vẫn theo thứ tự xuôi thời gian)
+                        labels.unshift(timeStr.substring(11, 16));
+                        values.unshift(d.dust);
+
+                        // Thêm vào bảng
+                        let row = `<tr>
+                            <td>${timeStr}</td>
+                            <td>${d.temp.toFixed(1)}</td>
+                            <td>${d.humi.toFixed(0)}</td>
+                            <td>${Number(d.dust).toFixed(3)}</td>
+                            <td class="${aqi.class}">${aqi.val}</td>
+                            <td class="${aqi.class}">${aqi.msg}</td>
+                        </tr>`;
+                        tableBody.innerHTML += row;
+                        if(!lastData) lastData = d;
                     }
                 });
 
-                // Cập nhật giao diện số
-                if (lastEntry) {
-                    document.getElementById("temp-val").innerText = lastEntry.temp.toFixed(1);
-                    document.getElementById("humi-val").innerText = lastEntry.humi.toFixed(0);
-                    document.getElementById("dust-val").innerText = lastEntry.dust.toFixed(3);
-                    document.getElementById("status").innerText = "Cập nhật cuối: " + new Date().toLocaleTimeString();
-                }
-
-                // Cập nhật biểu đồ
-                airChart.data.labels = labels;
-                airChart.data.datasets[0].data = values;
+                airChart.data.labels = labels.reverse();
+                airChart.data.datasets[0].data = values.reverse();
                 airChart.update();
-            } else {
-                document.getElementById("status").innerText = "Chưa tìm thấy dữ liệu trong thư mục /AirQuality";
-            }
-        }, (error) => {
-            console.error("Lỗi Firebase:", error);
-            document.getElementById("status").innerText = "Lỗi: Kiểm tra Rules trong Firebase!";
-        });
+
+                if(lastData) {
+                    document.getElementById("temp-val").innerText = lastData.temp.toFixed(1) + "°C";
+                    document.getElementById("humi-val").innerText = lastData.humi.toFixed(0) + "%";
+                    document.getElementById("dust-val").innerText = Number(lastData.dust).toFixed(3);
+                }
+            });
+        }
+
+        changeRange(24);
     </script>
 </body>
 </html>
