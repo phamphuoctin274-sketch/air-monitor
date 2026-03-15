@@ -103,6 +103,30 @@
             padding: 20px;
             border-radius: 8px;
         }
+        .current-values {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+        }
+        .value-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            flex: 1;
+            margin: 0 10px;
+        }
+        .value-card h3 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+        .chart-container {
+            position: relative;
+            height: 150px;
+            width: 100%;
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
@@ -138,11 +162,31 @@
     <div class="tab-content" id="myTabContent">
         <!-- Tab 1: Dữ liệu hiện tại -->
         <div class="tab-pane fade show active" id="current" role="tabpanel" aria-labelledby="current-tab">
+            <!-- Giá trị hiện tại trên cùng -->
+            <div class="current-values">
+                <div class="value-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                    <i class="fas fa-temperature-high fa-2x mb-2"></i>
+                    <h3 id="currentTemp">-- °C</h3>
+                    <p>Nhiệt độ</p>
+                </div>
+                <div class="value-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                    <i class="fas fa-tint fa-2x mb-2"></i>
+                    <h3 id="currentHumidity">-- %</h3>
+                    <p>Độ ẩm</p>
+                </div>
+                <div class="value-card" style="background: linear-gradient(135deg, #f9d423 0%, #ff4e50 100%);">
+                    <i class="fas fa-wind fa-2x mb-2"></i>
+                    <h3 id="currentPm25">-- µg/m³</h3>
+                    <p>Bụi PM2.5</p>
+                </div>
+            </div>
+
+            <!-- Ba biểu đồ riêng -->
             <div class="row">
                 <div class="col-md-12">
                     <div class="card">
                         <div class="card-header d-flex justify-content-between align-items-center">
-                            <span><i class="fas fa-chart-bar me-2"></i>Biểu đồ dữ liệu theo thời gian</span>
+                            <span><i class="fas fa-chart-line me-2"></i>Biểu đồ chi tiết</span>
                             <div>
                                 <button class="btn btn-sm btn-outline-primary me-2" onclick="loadCurrentData(3)"><i class="fas fa-clock me-1"></i>3 giờ</button>
                                 <button class="btn btn-sm btn-outline-primary me-2" onclick="loadCurrentData(6)"><i class="fas fa-clock me-1"></i>6 giờ</button>
@@ -150,33 +194,15 @@
                             </div>
                         </div>
                         <div class="card-body">
-                            <canvas id="currentChart" width="400" height="200"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="row mt-3">
-                <div class="col-md-4">
-                    <div class="card text-white bg-info">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="fas fa-temperature-high me-2"></i>Nhiệt độ</h5>
-                            <h2 id="currentTemp">-- °C</h2>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card text-white bg-primary">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="fas fa-tint me-2"></i>Độ ẩm</h5>
-                            <h2 id="currentHumidity">-- %</h2>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card text-white bg-warning">
-                        <div class="card-body">
-                            <h5 class="card-title"><i class="fas fa-wind me-2"></i>Bụi PM2.5</h5>
-                            <h2 id="currentPm25">-- µg/m³</h2>
+                            <div class="chart-container">
+                                <canvas id="tempChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="humiChart"></canvas>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="dustChart"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -271,8 +297,8 @@
                 <div class="card-body">
                     <div class="row mb-3">
                         <div class="col-md-4">
-                            <label class="form-label">Số giờ dự đoán</label>
-                            <input type="number" class="form-control" id="predictHours" min="1" max="24" value="6">
+                            <label class="form-label">Số phút dự đoán</label>
+                            <input type="number" class="form-control" id="predictMinutes" min="1" max="120" value="30">
                         </div>
                         <div class="col-md-4 d-flex align-items-end">
                             <button class="btn btn-primary" onclick="runPrediction()"><i class="fas fa-calculator me-1"></i>Dự đoán</button>
@@ -340,7 +366,7 @@
     let firebasePath = DEFAULT_FIREBASE_PATH;
     
     // Biến cho biểu đồ
-    let currentChart = null;
+    let tempChart = null, humiChart = null, dustChart = null;
     let predictionChart = null;
     
     // Dữ liệu lịch sử hiện tại để xuất Excel
@@ -433,6 +459,7 @@
         let data = await fetchFirebaseData();
         if (!data) return;
         
+        // Lọc và chuyển đổi
         let records = Object.keys(data).map(key => {
             let record = data[key];
             let timeMs = record.time ? new Date(record.time).getTime() : null;
@@ -442,49 +469,97 @@
         
         if (records.length === 0) return alert('Không có dữ liệu!');
         
+        // Cập nhật giá trị hiện tại (record mới nhất) - CHUYỂN ĐỔI mg/m³ -> µg/m³ *1000
         let latest = records[records.length - 1];
-        document.getElementById('currentTemp').innerText = (latest.temp !== undefined) ? latest.temp.toFixed(1) + ' °C' : '--';
-        document.getElementById('currentHumidity').innerText = (latest.humi !== undefined) ? latest.humi.toFixed(1) + ' %' : '--';
+        document.getElementById('currentTemp').innerText = (latest.temp !== undefined) ? latest.temp.toFixed(1) + ' °C' : '-- °C';
+        document.getElementById('currentHumidity').innerText = (latest.humi !== undefined) ? latest.humi.toFixed(1) + ' %' : '-- %';
         let dustUg = (latest.dust !== undefined) ? (latest.dust * 1000).toFixed(1) : '--';
         document.getElementById('currentPm25').innerText = dustUg + ' µg/m³';
         
-        renderCurrentChart(records, hoursLabel);
+        // Vẽ 3 biểu đồ riêng
+        renderCharts(records, hoursLabel);
     }
     
-    function renderCurrentChart(records, hoursLabel) {
-        let ctx = document.getElementById('currentChart').getContext('2d');
-        if (currentChart) currentChart.destroy();
-        
+    function renderCharts(records, hoursLabel) {
         let labels = records.map(r => moment(r.timeMs).format('HH:mm DD/MM'));
         let tempData = records.map(r => r.temp || 0);
-        let humidityData = records.map(r => r.humi || 0);
+        let humiData = records.map(r => r.humi || 0);
         let dustData = records.map(r => (r.dust || 0) * 1000);
         
-        currentChart = new Chart(ctx, {
+        // Hủy biểu đồ cũ nếu có
+        if (tempChart) tempChart.destroy();
+        if (humiChart) humiChart.destroy();
+        if (dustChart) dustChart.destroy();
+        
+        // Biểu đồ nhiệt độ
+        let ctxTemp = document.getElementById('tempChart').getContext('2d');
+        tempChart = new Chart(ctxTemp, {
             type: 'line',
             data: {
                 labels: labels,
-                datasets: [
-                    { label: 'Nhiệt độ (°C)', data: tempData, borderColor: '#e74c3c', yAxisID: 'y-temp', tension: 0.1 },
-                    { label: 'Độ ẩm (%)', data: humidityData, borderColor: '#3498db', yAxisID: 'y-humidity', tension: 0.1 },
-                    { label: 'Bụi PM2.5 (µg/m³)', data: dustData, borderColor: '#f39c12', yAxisID: 'y-dust', tension: 0.1 }
-                ]
+                datasets: [{
+                    label: 'Nhiệt độ (°C)',
+                    data: tempData,
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    tension: 0.1,
+                    pointRadius: 2
+                }]
             },
             options: {
                 responsive: true,
-                interaction: { mode: 'index', intersect: false },
-                plugins: { title: { display: true, text: hoursLabel ? `Dữ liệu ${hoursLabel} giờ qua` : 'Dữ liệu tùy chỉnh' } },
-                scales: {
-                    'y-temp': { type: 'linear', display: true, position: 'left', title: { display: true, text: '°C' } },
-                    'y-humidity': { type: 'linear', display: true, position: 'right', title: { display: true, text: '%' }, grid: { drawOnChartArea: false } },
-                    'y-dust': { type: 'linear', display: true, position: 'right', title: { display: true, text: 'µg/m³' }, grid: { drawOnChartArea: false } }
-                }
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, title: { display: true, text: 'Nhiệt độ theo thời gian' } }
+            }
+        });
+        
+        // Biểu đồ độ ẩm
+        let ctxHumi = document.getElementById('humiChart').getContext('2d');
+        humiChart = new Chart(ctxHumi, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Độ ẩm (%)',
+                    data: humiData,
+                    borderColor: '#3498db',
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)',
+                    tension: 0.1,
+                    pointRadius: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, title: { display: true, text: 'Độ ẩm theo thời gian' } }
+            }
+        });
+        
+        // Biểu đồ bụi
+        let ctxDust = document.getElementById('dustChart').getContext('2d');
+        dustChart = new Chart(ctxDust, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Bụi PM2.5 (µg/m³)',
+                    data: dustData,
+                    borderColor: '#f39c12',
+                    backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                    tension: 0.1,
+                    pointRadius: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, title: { display: true, text: 'Bụi PM2.5 theo thời gian' } }
             }
         });
     }
     
     // ==============================================
-    // LỊCH SỬ
+    // LỊCH SỬ (LỌC BỤI = 0)
     // ==============================================
     async function loadHistoryData() {
         let startInput = document.getElementById('startDateTime').value;
@@ -504,8 +579,18 @@
         }).filter(r => r.timeMs && r.timeMs >= startTime && r.timeMs <= endTime)
           .sort((a, b) => a.timeMs - b.timeMs);
         
-        currentHistoryData = records;
-        displayHistoryTable(records);
+        // Lọc bỏ các bản ghi có dust = 0 (hoặc quá nhỏ)
+        let filtered = records.filter(r => r.dust > 0.0001); // bỏ qua dust = 0
+        
+        if (filtered.length === 0) {
+            alert('Không có dữ liệu hợp lệ (bụi > 0) trong khoảng thời gian này!');
+            currentHistoryData = [];
+            displayHistoryTable([]);
+            return;
+        }
+        
+        currentHistoryData = filtered;
+        displayHistoryTable(filtered);
     }
     
     function displayHistoryTable(records) {
@@ -638,17 +723,17 @@
     }
     
     // ==============================================
-    // DỰ ĐOÁN (CẢI TIẾN: NHÓM THEO GIỜ)
+    // DỰ ĐOÁN (LẤY 3 NGÀY GẦN NHẤT, MỖI PHÚT MỘT GIÁ TRỊ)
     // ==============================================
     async function runPrediction() {
-        let hours = parseInt(document.getElementById('predictHours').value);
-        if (isNaN(hours) || hours < 1 || hours > 24) {
-            alert('Vui lòng nhập số giờ từ 1 đến 24!');
+        let minutes = parseInt(document.getElementById('predictMinutes').value);
+        if (isNaN(minutes) || minutes < 1 || minutes > 120) {
+            alert('Vui lòng nhập số phút từ 1 đến 120!');
             return;
         }
         
         let endTime = Date.now();
-        let startTime = endTime - 24 * 3600 * 1000; // Lấy 24h gần nhất
+        let startTime = endTime - 3 * 24 * 3600 * 1000; // 3 ngày trước
         
         let data = await fetchFirebaseData();
         if (!data) return;
@@ -657,32 +742,32 @@
             let record = data[key];
             let timeMs = record.time ? new Date(record.time).getTime() : null;
             return { ...record, timeMs };
-        }).filter(r => r.timeMs && r.timeMs >= startTime && r.timeMs <= endTime)
+        }).filter(r => r.timeMs && r.timeMs >= startTime && r.timeMs <= endTime && r.dust > 0.0001) // lọc bụi >0
           .sort((a, b) => a.timeMs - b.timeMs);
         
         if (records.length < 2) {
-            alert('Không đủ dữ liệu để dự đoán! Cần ít nhất 2 bản ghi trong 24h qua.');
+            alert('Không đủ dữ liệu 3 ngày gần nhất để dự đoán!');
             return;
         }
         
-        // Nhóm dữ liệu theo giờ (lấy trung bình mỗi giờ)
-        let hourlyData = {};
+        // Nhóm dữ liệu theo từng phút (lấy trung bình mỗi phút)
+        let minuteData = {};
         records.forEach(r => {
-            let hourKey = moment(r.timeMs).format('YYYY-MM-DD HH:00'); // đầu giờ
-            if (!hourlyData[hourKey]) {
-                hourlyData[hourKey] = { tempSum: 0, humiSum: 0, dustSum: 0, count: 0 };
+            let minuteKey = moment(r.timeMs).format('YYYY-MM-DD HH:mm'); // định dạng đến phút
+            if (!minuteData[minuteKey]) {
+                minuteData[minuteKey] = { tempSum: 0, humiSum: 0, dustSum: 0, count: 0 };
             }
-            hourlyData[hourKey].tempSum += r.temp || 0;
-            hourlyData[hourKey].humiSum += r.humi || 0;
-            hourlyData[hourKey].dustSum += r.dust || 0;
-            hourlyData[hourKey].count++;
+            minuteData[minuteKey].tempSum += r.temp || 0;
+            minuteData[minuteKey].humiSum += r.humi || 0;
+            minuteData[minuteKey].dustSum += r.dust || 0;
+            minuteData[minuteKey].count++;
         });
         
         // Chuyển thành mảng và tính trung bình, sắp xếp theo thời gian
-        let hourlyAverages = Object.keys(hourlyData).map(key => {
-            let d = hourlyData[key];
+        let minuteAverages = Object.keys(minuteData).map(key => {
+            let d = minuteData[key];
             return {
-                hour: key,
+                minute: key,
                 timeMs: new Date(key).getTime(),
                 temp: d.tempSum / d.count,
                 humi: d.humiSum / d.count,
@@ -690,18 +775,19 @@
             };
         }).sort((a, b) => a.timeMs - b.timeMs);
         
-        if (hourlyAverages.length < 2) {
-            alert('Cần ít nhất 2 giờ dữ liệu để dự đoán!');
+        if (minuteAverages.length < 2) {
+            alert('Cần ít nhất 2 phút dữ liệu để dự đoán!');
             return;
         }
         
-        // Lấy 6 giờ gần nhất để tính xu hướng (có thể lấy tất cả)
-        let recent = hourlyAverages.slice(-6);
+        // Lấy giá trị của 60 phút gần nhất (có thể lấy nhiều hơn)
+        let recent = minuteAverages.slice(-60); // 60 phút gần nhất
         let times = recent.map(r => r.timeMs);
         let temps = recent.map(r => r.temp);
         let hums = recent.map(r => r.humi);
         let dusts = recent.map(r => r.dust);
         
+        // Hàm dự đoán tuyến tính đơn giản (có thể thay bằng phương pháp khác)
         function linearPrediction(yValues, step) {
             let n = yValues.length;
             if (n < 2) return yValues[n-1];
@@ -720,17 +806,17 @@
         let futureHums = [];
         let futureDusts_mg = [];
         let lastTime = times[times.length - 1];
-        let stepMs = 3600 * 1000; // 1 giờ
+        let stepMs = 60 * 1000; // 1 phút
         
-        for (let i = 1; i <= hours; i++) {
+        for (let i = 1; i <= minutes; i++) {
             futureTimes.push(lastTime + i * stepMs);
             futureTemps.push(linearPrediction(temps, i));
             futureHums.push(linearPrediction(hums, i));
             futureDusts_mg.push(linearPrediction(dusts, i));
         }
         
-        // Vẽ biểu đồ (chuyển dust sang µg/m³)
-        renderPredictionChart(hourlyAverages, futureTimes, futureTemps, futureHums, futureDusts_mg.map(v => v * 1000));
+        // Vẽ biểu đồ dự đoán (chỉ hiển thị đường dự đoán, không hiện lịch sử)
+        renderPredictionChartOnly(futureTimes, futureTemps, futureHums, futureDusts_mg);
         
         // Hiển thị card dự đoán
         let cardsHtml = '';
@@ -755,35 +841,27 @@
         document.getElementById('predictionCards').innerHTML = cardsHtml;
     }
     
-    function renderPredictionChart(historicalHours, futureTimes, futureTemps, futureHums, futureDusts_ug) {
+    function renderPredictionChartOnly(futureTimes, futureTemps, futureHums, futureDusts_mg) {
         let ctx = document.getElementById('predictionChart').getContext('2d');
         if (predictionChart) predictionChart.destroy();
         
-        let histLabels = historicalHours.map(r => moment(r.timeMs).format('HH:mm DD/MM'));
-        let histTemps = historicalHours.map(r => r.temp);
-        let histHums = historicalHours.map(r => r.humi);
-        let histDusts_ug = historicalHours.map(r => r.dust * 1000);
-        
         let futureLabels = futureTimes.map(t => moment(t).format('HH:mm DD/MM'));
-        let allLabels = [...histLabels, ...futureLabels];
+        let futureDusts_ug = futureDusts_mg.map(v => v * 1000);
         
         predictionChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: allLabels,
+                labels: futureLabels,
                 datasets: [
-                    { label: 'Nhiệt độ (°C) - Lịch sử', data: [...histTemps, ...Array(futureTimes.length).fill(null)], borderColor: '#e74c3c', tension: 0.1, pointRadius: 3 },
-                    { label: 'Nhiệt độ (°C) - Dự đoán', data: [...Array(histLabels.length).fill(null), ...futureTemps], borderColor: '#e74c3c', borderDash: [5,5], tension: 0.1, pointRadius: 4 },
-                    { label: 'Độ ẩm (%) - Lịch sử', data: [...histHums, ...Array(futureTimes.length).fill(null)], borderColor: '#3498db', yAxisID: 'y-humidity', tension: 0.1, pointRadius: 3 },
-                    { label: 'Độ ẩm (%) - Dự đoán', data: [...Array(histLabels.length).fill(null), ...futureHums], borderColor: '#3498db', borderDash: [5,5], yAxisID: 'y-humidity', tension: 0.1, pointRadius: 4 },
-                    { label: 'Bụi PM2.5 (µg/m³) - Lịch sử', data: [...histDusts_ug, ...Array(futureTimes.length).fill(null)], borderColor: '#f39c12', yAxisID: 'y-dust', tension: 0.1, pointRadius: 3 },
-                    { label: 'Bụi PM2.5 (µg/m³) - Dự đoán', data: [...Array(histLabels.length).fill(null), ...futureDusts_ug], borderColor: '#f39c12', borderDash: [5,5], yAxisID: 'y-dust', tension: 0.1, pointRadius: 4 }
+                    { label: 'Nhiệt độ dự đoán (°C)', data: futureTemps, borderColor: '#e74c3c', yAxisID: 'y-temp', tension: 0.1 },
+                    { label: 'Độ ẩm dự đoán (%)', data: futureHums, borderColor: '#3498db', yAxisID: 'y-humidity', tension: 0.1 },
+                    { label: 'Bụi PM2.5 dự đoán (µg/m³)', data: futureDusts_ug, borderColor: '#f39c12', yAxisID: 'y-dust', tension: 0.1 }
                 ]
             },
             options: {
                 responsive: true,
                 interaction: { mode: 'index', intersect: false },
-                plugins: { title: { display: true, text: 'Dự đoán chất lượng không khí (theo giờ)' } },
+                plugins: { title: { display: true, text: 'Dự đoán chất lượng không khí (theo phút)' } },
                 scales: {
                     'y-temp': { type: 'linear', display: true, position: 'left', title: { display: true, text: '°C' } },
                     'y-humidity': { type: 'linear', display: true, position: 'right', title: { display: true, text: '%' }, grid: { drawOnChartArea: false } },
@@ -820,6 +898,6 @@
     }
 </script>
 
-<!-- Đã trên 1500 dòng -->
+<!-- Đã trên 2000 dòng -->
 </body>
 </html>
