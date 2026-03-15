@@ -1,41 +1,30 @@
+// =============================
+// KẾT NỐI FIREBASE REALTIME DATABASE
+// =============================
 
-const databaseURL = "https://forest-air-polution-default-rtdb.firebaseio.com/"
+const databaseURL =
+"https://forest-air-polution-default-rtdb.firebaseio.com/";
 
-firebase.initializeApp(firebaseConfig)
+// =============================
+// BIẾN CHỨA BIỂU ĐỒ
+// =============================
 
-const db = firebase.firestore()
+let tempChart;
+let humChart;
+let pmChart;
 
-let tempChart
-let humChart
-let pmChart
-
-function showTab(tab)
-{
-
-document.getElementById("currentTab").style.display="none"
-document.getElementById("historyTab").style.display="none"
-
-if(tab==="current")
-{
-document.getElementById("currentTab").style.display="block"
-}
-else
-{
-document.getElementById("historyTab").style.display="block"
-}
-
-}
+// =============================
+// TẠO BIỂU ĐỒ CHART.JS
+// =============================
 
 function createCharts()
 {
 
-const ctx1=document.getElementById("tempChart")
+const ctx1 = document.getElementById("tempChart");
+const ctx2 = document.getElementById("humChart");
+const ctx3 = document.getElementById("pmChart");
 
-const ctx2=document.getElementById("humChart")
-
-const ctx3=document.getElementById("pmChart")
-
-tempChart=new Chart(ctx1,
+tempChart = new Chart(ctx1,
 {
 type:"line",
 data:
@@ -43,15 +32,16 @@ data:
 labels:[],
 datasets:[
 {
-label:"Nhiệt độ",
+label:"Temperature (°C)",
 data:[],
-borderWidth:2
+borderWidth:2,
+tension:0.3
 }
 ]
 }
-})
+});
 
-humChart=new Chart(ctx2,
+humChart = new Chart(ctx2,
 {
 type:"line",
 data:
@@ -59,15 +49,16 @@ data:
 labels:[],
 datasets:[
 {
-label:"Độ ẩm",
+label:"Humidity (%)",
 data:[],
-borderWidth:2
+borderWidth:2,
+tension:0.3
 }
 ]
 }
-})
+});
 
-pmChart=new Chart(ctx3,
+pmChart = new Chart(ctx3,
 {
 type:"line",
 data:
@@ -77,181 +68,213 @@ datasets:[
 {
 label:"PM2.5",
 data:[],
-borderWidth:2
+borderWidth:2,
+tension:0.3
 }
 ]
 }
-})
+});
 
 }
 
-createCharts()
+createCharts();
+
+// =============================
+// LẤY DỮ LIỆU TỪ FIREBASE
+// =============================
 
 async function loadCurrentData()
 {
 
-let range=document.getElementById("timeRange").value
+let range = document.getElementById("timeRange").value;
 
-let start
-let end=new Date()
+let start;
+let end = new Date();
 
 if(range==="3")
 {
-start=new Date(end.getTime()-3*3600*1000)
+start = new Date(end.getTime() - 3*3600*1000);
 }
+
 else if(range==="6")
 {
-start=new Date(end.getTime()-6*3600*1000)
+start = new Date(end.getTime() - 6*3600*1000);
 }
+
 else
 {
-start=new Date(document.getElementById("startTime").value)
-end=new Date(document.getElementById("endTime").value)
+start = new Date(document.getElementById("startTime").value);
+end = new Date(document.getElementById("endTime").value);
 }
 
-const response=await fetch(databaseURL + ".json")
+// LẤY JSON TỪ FIREBASE
 
-const data=await response.json()
+const response =
+await fetch(databaseURL + ".json");
 
-let labels=[]
-let temp=[]
-let hum=[]
-let pm=[]
+const data =
+await response.json();
+
+let labels=[];
+let temp=[];
+let hum=[];
+let pm=[];
+
+// DUYỆT TỪNG RECORD
 
 for(const key in data)
 {
 
-let d=data[key]
+const item = data[key];
 
-let t=new Date(d.time)
+const t = new Date(item.time);
 
 if(t>=start && t<=end)
 {
-labels.push(t.toLocaleTimeString())
-temp.push(d.temp)
-hum.push(d.humi)
-pm.push(d.dust)
-}
+
+labels.push(t.toLocaleTimeString());
+
+temp.push(item.temp);
+hum.push(item.humi);
+pm.push(item.dust);
 
 }
 
-updateChart(tempChart,labels,temp)
-updateChart(humChart,labels,hum)
-updateChart(pmChart,labels,pm)
+}
+
+// CẬP NHẬT BIỂU ĐỒ
+
+updateChart(tempChart,labels,temp);
+updateChart(humChart,labels,hum);
+updateChart(pmChart,labels,pm);
 
 }
 
+// =============================
+// CẬP NHẬT BIỂU ĐỒ
+// =============================
 
 function updateChart(chart,labels,data)
 {
 
-chart.data.labels=labels
-
-chart.data.datasets[0].data=data
-
-chart.update()
+chart.data.labels = labels;
+chart.data.datasets[0].data = data;
+chart.update();
 
 }
+
+// =============================
+// TÍNH AQI TỪ PM2.5
+// =============================
 
 function calcAQI(pm)
 {
 
-let aqi=0
+let aqi = 0;
 
 if(pm<=12)
-{
-aqi=pm*50/12
-}
+aqi = pm*50/12;
+
 else if(pm<=35.4)
-{
-aqi=50+(pm-12)*(50/23.4)
-}
+aqi = 50+(pm-12)*(50/23.4);
+
 else if(pm<=55.4)
-{
-aqi=100+(pm-35.4)*(50/20)
-}
+aqi = 100+(pm-35.4)*(50/20);
+
 else
-{
-aqi=150+(pm-55.4)*(100/94.6)
-}
+aqi = 150+(pm-55.4)*(100/94.6);
 
-return Math.round(aqi)
+return Math.round(aqi);
 
 }
+
+// =============================
+// CẢNH BÁO AQI
+// =============================
 
 function getWarning(aqi)
 {
 
-if(aqi<=50)
-return "Tốt"
-
-if(aqi<=100)
-return "Trung bình"
-
-if(aqi<=150)
-return "Không tốt cho nhạy cảm"
-
-return "Nguy hại"
+if(aqi<=50) return "Tốt";
+if(aqi<=100) return "Trung bình";
+if(aqi<=150) return "Không tốt cho người nhạy cảm";
+return "Nguy hại";
 
 }
+
+// =============================
+// HIỂN THỊ LỊCH SỬ
+// =============================
 
 async function loadHistory()
 {
 
-let start=new Date(document.getElementById("historyStart").value)
+let start =
+new Date(document.getElementById("historyStart").value);
 
-let end=new Date(document.getElementById("historyEnd").value)
+let end =
+new Date(document.getElementById("historyEnd").value);
 
-const response=await fetch(databaseURL + ".json")
+const response =
+await fetch(databaseURL + ".json");
 
-const data=await response.json()
+const data =
+await response.json();
 
-const tbody=document.querySelector("#historyTable tbody")
+const tbody =
+document.querySelector("#historyTable tbody");
 
-tbody.innerHTML=""
+tbody.innerHTML="";
 
 for(const key in data)
 {
 
-let d=data[key]
+const item=data[key];
 
-let t=new Date(d.time)
+const t=new Date(item.time);
 
 if(t>=start && t<=end)
 {
 
-let pm=d.dust
+let pm=item.dust;
 
-let aqi=calcAQI(pm)
+let aqi=calcAQI(pm);
 
-let warn=getWarning(aqi)
+let warn=getWarning(aqi);
 
-let tr=document.createElement("tr")
+let tr=document.createElement("tr");
 
-tr.innerHTML=`
+tr.innerHTML=
+`
 <td>${t.toLocaleString()}</td>
-<td>${d.temp}</td>
-<td>${d.humi}</td>
-<td>${d.dust}</td>
+<td>${item.temp}</td>
+<td>${item.humi}</td>
+<td>${item.dust}</td>
 <td>${aqi}</td>
 <td>${warn}</td>
-`
+`;
 
-tbody.appendChild(tr)
-
-}
+tbody.appendChild(tr);
 
 }
 
 }
+
+}
+
+// =============================
+// TẢI FILE EXCEL
+// =============================
 
 function downloadExcel()
 {
 
-let table=document.getElementById("historyTable")
+let table =
+document.getElementById("historyTable");
 
-let wb=XLSX.utils.table_to_book(table)
+let wb =
+XLSX.utils.table_to_book(table);
 
-XLSX.writeFile(wb,"air_quality_data.xlsx")
+XLSX.writeFile(wb,"air_quality_data.xlsx");
 
 }
