@@ -1,13 +1,5 @@
 
-const firebaseConfig =
-{
-apiKey:"YOUR_API_KEY",
-authDomain:"YOUR_DOMAIN",
-projectId:"YOUR_PROJECT",
-storageBucket:"YOUR_BUCKET",
-messagingSenderId:"ID",
-appId:"APP_ID"
-}
+const databaseURL = "https://forest-air-polution-default-rtdb.firebaseio.com/"
 
 firebase.initializeApp(firebaseConfig)
 
@@ -117,39 +109,38 @@ start=new Date(document.getElementById("startTime").value)
 end=new Date(document.getElementById("endTime").value)
 }
 
-const snapshot=await db.collection("airdata")
-.where("time",">=",start)
-.where("time","<=",end)
-.orderBy("time")
-.get()
+const response=await fetch(databaseURL + ".json")
+
+const data=await response.json()
 
 let labels=[]
 let temp=[]
 let hum=[]
 let pm=[]
 
-snapshot.forEach(doc=>
+for(const key in data)
 {
 
-let d=doc.data()
+let d=data[key]
 
-labels.push(new Date(d.time.seconds*1000).toLocaleTimeString())
+let t=new Date(d.time)
 
-temp.push(d.temperature)
+if(t>=start && t<=end)
+{
+labels.push(t.toLocaleTimeString())
+temp.push(d.temp)
+hum.push(d.humi)
+pm.push(d.dust)
+}
 
-hum.push(d.humidity)
-
-pm.push(d.pm25)
-
-})
+}
 
 updateChart(tempChart,labels,temp)
-
 updateChart(humChart,labels,hum)
-
 updateChart(pmChart,labels,pm)
 
 }
+
 
 function updateChart(chart,labels,data)
 {
@@ -211,22 +202,25 @@ let start=new Date(document.getElementById("historyStart").value)
 
 let end=new Date(document.getElementById("historyEnd").value)
 
-const snapshot=await db.collection("airdata")
-.where("time",">=",start)
-.where("time","<=",end)
-.orderBy("time")
-.get()
+const response=await fetch(databaseURL + ".json")
+
+const data=await response.json()
 
 const tbody=document.querySelector("#historyTable tbody")
 
 tbody.innerHTML=""
 
-snapshot.forEach(doc=>
+for(const key in data)
 {
 
-let d=doc.data()
+let d=data[key]
 
-let pm=d.pm25
+let t=new Date(d.time)
+
+if(t>=start && t<=end)
+{
+
+let pm=d.dust
 
 let aqi=calcAQI(pm)
 
@@ -235,24 +229,19 @@ let warn=getWarning(aqi)
 let tr=document.createElement("tr")
 
 tr.innerHTML=`
-
-<td>${new Date(d.time.seconds*1000).toLocaleString()}</td>
-
-<td>${d.temperature}</td>
-
-<td>${d.humidity}</td>
-
-<td>${pm}</td>
-
+<td>${t.toLocaleString()}</td>
+<td>${d.temp}</td>
+<td>${d.humi}</td>
+<td>${d.dust}</td>
 <td>${aqi}</td>
-
 <td>${warn}</td>
-
 `
 
 tbody.appendChild(tr)
 
-})
+}
+
+}
 
 }
 
