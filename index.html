@@ -250,6 +250,11 @@
                             <input type="text" class="form-control" id="firebaseAuth" placeholder="cMDFoQZvSQkiPGsma96pBIwxrOtc9dBOACHwidQN" required>
                             <div class="form-text">Database secret để xác thực REST API</div>
                         </div>
+                        <div class="mb-3">
+                            <label for="firebasePath" class="form-label">Đường dẫn dữ liệu (Node)</label>
+                            <input type="text" class="form-control" id="firebasePath" placeholder="AirQuality" value="AirQuality">
+                            <div class="form-text">Tên node chứa dữ liệu (ví dụ: AirQuality). Để trống nếu dữ liệu ở gốc.</div>
+                        </div>
                         <button type="submit" class="btn btn-primary"><i class="fas fa-save me-1"></i>Lưu cấu hình</button>
                         <button type="button" class="btn btn-secondary ms-2" onclick="resetToDefaultConfig()"><i class="fas fa-undo me-1"></i>Khôi phục mặc định</button>
                     </form>
@@ -323,14 +328,16 @@
 
 <script>
     // ==============================================
-    // CẤU HÌNH MẶC ĐỊNH (ĐÃ ĐIỀU CHỈNH THEO DỮ LIỆU THỰC TẾ)
+    // CẤU HÌNH MẶC ĐỊNH
     // ==============================================
     const DEFAULT_FIREBASE_HOST = "https://forest-air-pollution-default-rtdb.firebaseio.com/";
     const DEFAULT_FIREBASE_AUTH = "cMDFoQZvSQkiPGsma96pBIwxrOtc9dBOACHwidQN";
+    const DEFAULT_FIREBASE_PATH = "AirQuality";  // Node chứa dữ liệu (có thể để trống nếu ở gốc)
     
     // Biến toàn cục lưu cấu hình hiện tại
     let firebaseHost = DEFAULT_FIREBASE_HOST;
     let firebaseAuth = DEFAULT_FIREBASE_AUTH;
+    let firebasePath = DEFAULT_FIREBASE_PATH;
     
     // Biến cho biểu đồ
     let currentChart = null;
@@ -349,6 +356,7 @@
         // Gán giá trị vào form cài đặt
         document.getElementById('firebaseHost').value = firebaseHost;
         document.getElementById('firebaseAuth').value = firebaseAuth;
+        document.getElementById('firebasePath').value = firebasePath;
         
         // Thiết lập thời gian mặc định cho form lịch sử (24h gần nhất)
         setDefaultHistoryTimes();
@@ -385,11 +393,13 @@
     // ==============================================
     // HÀM TIỆN ÍCH: LẤY DỮ LIỆU TỪ FIREBASE QUA REST
     // ==============================================
-    async function fetchFirebaseData(path = '') {
+    async function fetchFirebaseData() {
         try {
             // Đảm bảo host không có dấu / ở cuối
             let baseUrl = firebaseHost.replace(/\/$/, '');
-            let url = `${baseUrl}/${path}.json?auth=${firebaseAuth}`;
+            // Xử lý đường dẫn: nếu firebasePath không rỗng, thêm vào, nếu rỗng thì để trống
+            let path = firebasePath ? `/${firebasePath}` : '';
+            let url = `${baseUrl}${path}.json?auth=${firebaseAuth}`;
             let response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
@@ -431,8 +441,7 @@
     }
     
     async function loadDataForChart(startTime, endTime, hoursLabel) {
-        // Dữ liệu nằm ngay gốc, mỗi key là một bản ghi
-        let data = await fetchFirebaseData('');
+        let data = await fetchFirebaseData();
         if (!data) return;
         
         // Chuyển đổi object thành mảng, parse thời gian từ chuỗi
@@ -453,11 +462,12 @@
             return;
         }
         
-        // Cập nhật giá trị hiện tại (record mới nhất)
+        // Cập nhật giá trị hiện tại (record mới nhất) - CHUYỂN ĐỔI mg/m³ -> µg/m³ *1000
         let latest = records[records.length - 1];
         document.getElementById('currentTemp').innerText = (latest.temp !== undefined) ? latest.temp.toFixed(1) + ' °C' : '--';
         document.getElementById('currentHumidity').innerText = (latest.humi !== undefined) ? latest.humi.toFixed(1) + ' %' : '--';
-        document.getElementById('currentPm25').innerText = (latest.dust !== undefined) ? latest.dust.toFixed(1) + ' µg/m³' : '--';
+        let dustUg = (latest.dust !== undefined) ? (latest.dust * 1000).toFixed(1) : '--';
+        document.getElementById('currentPm25').innerText = dustUg + ' µg/m³';
         
         // Vẽ biểu đồ
         renderCurrentChart(records, hoursLabel);
@@ -471,7 +481,7 @@
         let labels = records.map(r => moment(r.timeMs).format('HH:mm DD/MM'));
         let tempData = records.map(r => r.temp || 0);
         let humidityData = records.map(r => r.humi || 0);
-        let dustData = records.map(r => r.dust || 0);
+        let dustData = records.map(r => (r.dust || 0) * 1000); // Đổi sang µg/m³
         
         currentChart = new Chart(ctx, {
             type: 'line',
@@ -536,7 +546,7 @@
             return;
         }
         
-        let data = await fetchFirebaseData('');
+        let data = await fetchFirebaseData();
         if (!data) return;
         
         let records = Object.keys(data).map(key => {
@@ -559,7 +569,8 @@
         
         let html = '';
         records.forEach(record => {
-            let aqi = calculateAQI(record.dust);
+            let dustUg = record.dust * 1000; // Đổi sang µg/m³
+            let aqi = calculateAQI(dustUg); // Tính AQI từ µg/m³
             let aqiLevel = getAQILevel(aqi);
             let warningText = getAQIWarning(aqi);
             let colorClass = getAQIColorClass(aqi);
@@ -568,7 +579,7 @@
                 <td>${moment(record.timeMs).format('DD/MM/YYYY HH:mm')}</td>
                 <td>${(record.temp || 0).toFixed(1)}</td>
                 <td>${(record.humi || 0).toFixed(1)}</td>
-                <td>${(record.dust || 0).toFixed(1)}</td>
+                <td>${dustUg.toFixed(1)}</td>
                 <td><span class="aqi-indicator ${colorClass}"></span> ${aqi}</td>
                 <td>${warningText}</td>
             </tr>`;
@@ -576,9 +587,7 @@
         tbody.innerHTML = html;
     }
     
-    function calculateAQI(dust) {
-        // Công thức AQI của EPA cho PM2.5 (coi dust là PM2.5)
-        let pm25 = dust;
+    function calculateAQI(pm25) { // pm25 đã là µg/m³
         if (pm25 <= 12.0) return Math.round((50/12) * pm25);
         else if (pm25 <= 35.4) return Math.round( ((100-51)/(35.4-12.1)) * (pm25 - 12.1) + 51 );
         else if (pm25 <= 55.4) return Math.round( ((150-101)/(55.4-35.5)) * (pm25 - 35.5) + 101 );
@@ -625,12 +634,13 @@
         
         // Chuẩn bị dữ liệu cho sheet
         let excelData = currentHistoryData.map(record => {
-            let aqi = calculateAQI(record.dust);
+            let dustUg = record.dust * 1000;
+            let aqi = calculateAQI(dustUg);
             return {
                 'Thời gian': moment(record.timeMs).format('DD/MM/YYYY HH:mm'),
                 'Nhiệt độ (°C)': (record.temp || 0).toFixed(1),
                 'Độ ẩm (%)': (record.humi || 0).toFixed(1),
-                'PM2.5 (µg/m³)': (record.dust || 0).toFixed(1),
+                'PM2.5 (µg/m³)': dustUg.toFixed(1),
                 'AQI': aqi,
                 'Cảnh báo': getAQIWarning(aqi)
             };
@@ -651,13 +661,16 @@
     function loadConfigFromStorage() {
         let storedHost = localStorage.getItem('firebaseHost');
         let storedAuth = localStorage.getItem('firebaseAuth');
+        let storedPath = localStorage.getItem('firebasePath');
         if (storedHost) firebaseHost = storedHost;
         if (storedAuth) firebaseAuth = storedAuth;
+        if (storedPath !== null) firebasePath = storedPath; // cho phép rỗng
     }
     
     function saveConfig() {
         let newHost = document.getElementById('firebaseHost').value.trim();
         let newAuth = document.getElementById('firebaseAuth').value.trim();
+        let newPath = document.getElementById('firebasePath').value.trim();
         if (!newHost || !newAuth) {
             alert('Vui lòng nhập đầy đủ thông tin!');
             return;
@@ -667,9 +680,11 @@
         
         firebaseHost = newHost;
         firebaseAuth = newAuth;
+        firebasePath = newPath; // có thể rỗng
         
         localStorage.setItem('firebaseHost', firebaseHost);
         localStorage.setItem('firebaseAuth', firebaseAuth);
+        localStorage.setItem('firebasePath', firebasePath);
         
         // Cập nhật trạng thái kết nối
         document.getElementById('connectionStatus').innerHTML = '<i class="fas fa-plug me-1"></i>Đã kết nối';
@@ -682,10 +697,13 @@
     function resetToDefaultConfig() {
         firebaseHost = DEFAULT_FIREBASE_HOST;
         firebaseAuth = DEFAULT_FIREBASE_AUTH;
+        firebasePath = DEFAULT_FIREBASE_PATH;
         document.getElementById('firebaseHost').value = firebaseHost;
         document.getElementById('firebaseAuth').value = firebaseAuth;
+        document.getElementById('firebasePath').value = firebasePath;
         localStorage.setItem('firebaseHost', firebaseHost);
         localStorage.setItem('firebaseAuth', firebaseAuth);
+        localStorage.setItem('firebasePath', firebasePath);
         alert('Đã khôi phục cấu hình mặc định!');
     }
     
@@ -703,7 +721,7 @@
         let endTime = Date.now();
         let startTime = endTime - 24 * 3600 * 1000;
         
-        let data = await fetchFirebaseData('');
+        let data = await fetchFirebaseData();
         if (!data) return;
         
         let records = Object.keys(data).map(key => {
@@ -719,12 +737,12 @@
         }
         
         // Dự đoán bằng phương pháp đơn giản: lấy giá trị trung bình của các giờ gần nhất và thêm xu hướng tuyến tính
-        // Lấy 6 giá trị cuối cùng để tính xu hướng
+        // Lấy 6 giá trị cuối cùng để tính xu hướng (giá trị gốc là mg/m³)
         let recent = records.slice(-6);
         let times = recent.map(r => r.timeMs);
         let temps = recent.map(r => r.temp || 0);
         let hums = recent.map(r => r.humi || 0);
-        let dusts = recent.map(r => r.dust || 0);
+        let dusts = recent.map(r => r.dust || 0); // mg/m³
         
         // Hàm dự đoán tuyến tính đơn giản
         function linearPrediction(yValues, step) {
@@ -743,7 +761,7 @@
         let futureTimes = [];
         let futureTemps = [];
         let futureHums = [];
-        let futureDusts = [];
+        let futureDusts_mg = []; // mg/m³
         let lastTime = times[times.length - 1];
         let stepMs = 3600 * 1000; // 1 giờ
         
@@ -751,16 +769,17 @@
             futureTimes.push(lastTime + i * stepMs);
             futureTemps.push(linearPrediction(temps, i));
             futureHums.push(linearPrediction(hums, i));
-            futureDusts.push(linearPrediction(dusts, i));
+            futureDusts_mg.push(linearPrediction(dusts, i));
         }
         
-        // Vẽ biểu đồ dự đoán
-        renderPredictionChart(records, futureTimes, futureTemps, futureHums, futureDusts);
+        // Vẽ biểu đồ dự đoán (chuyển dust sang µg/m³ để vẽ)
+        renderPredictionChart(records, futureTimes, futureTemps, futureHums, futureDusts_mg.map(v => v * 1000));
         
-        // Hiển thị thông tin dự đoán dạng card
+        // Hiển thị thông tin dự đoán dạng card (chuyển dust sang µg/m³)
         let cardsHtml = '';
         for (let i = 0; i < futureTimes.length; i++) {
-            let aqi = calculateAQI(futureDusts[i]);
+            let dustUg = futureDusts_mg[i] * 1000;
+            let aqi = calculateAQI(dustUg);
             let aqiLevel = getAQILevel(aqi);
             cardsHtml += `
                 <div class="col-md-4 mb-3">
@@ -769,7 +788,7 @@
                             <h6 class="card-title">${moment(futureTimes[i]).format('HH:mm DD/MM')}</h6>
                             <p class="mb-1"><i class="fas fa-temperature-high"></i> ${futureTemps[i].toFixed(1)} °C</p>
                             <p class="mb-1"><i class="fas fa-tint"></i> ${futureHums[i].toFixed(1)} %</p>
-                            <p class="mb-1"><i class="fas fa-wind"></i> ${futureDusts[i].toFixed(1)} µg/m³</p>
+                            <p class="mb-1"><i class="fas fa-wind"></i> ${dustUg.toFixed(1)} µg/m³</p>
                             <p class="mb-0"><span class="aqi-indicator ${getAQIColorClass(aqi)}"></span> AQI: ${aqi} (${aqiLevel})</p>
                         </div>
                     </div>
@@ -779,7 +798,7 @@
         document.getElementById('predictionCards').innerHTML = cardsHtml;
     }
     
-    function renderPredictionChart(historical, futureTimes, futureTemps, futureHums, futureDusts) {
+    function renderPredictionChart(historical, futureTimes, futureTemps, futureHums, futureDusts_ug) {
         let ctx = document.getElementById('predictionChart').getContext('2d');
         if (predictionChart) predictionChart.destroy();
         
@@ -791,7 +810,7 @@
         let histLabels = histRecords.map(r => moment(r.timeMs).format('HH:mm DD/MM'));
         let histTemps = histRecords.map(r => r.temp || 0);
         let histHums = histRecords.map(r => r.humi || 0);
-        let histDusts = histRecords.map(r => r.dust || 0);
+        let histDusts_ug = histRecords.map(r => (r.dust || 0) * 1000); // đổi sang µg/m³
         
         let futureLabels = futureTimes.map(t => moment(t).format('HH:mm DD/MM'));
         let allLabels = [...histLabels, ...futureLabels];
@@ -839,7 +858,7 @@
                     },
                     {
                         label: 'Bụi PM2.5 (µg/m³) - Lịch sử',
-                        data: [...histDusts, ...Array(futureTimes.length).fill(null)],
+                        data: [...histDusts_ug, ...Array(futureTimes.length).fill(null)],
                         borderColor: '#f39c12',
                         backgroundColor: 'transparent',
                         tension: 0.1,
@@ -848,7 +867,7 @@
                     },
                     {
                         label: 'Bụi PM2.5 (µg/m³) - Dự đoán',
-                        data: [...Array(histLabels.length).fill(null), ...futureDusts],
+                        data: [...Array(histLabels.length).fill(null), ...futureDusts_ug],
                         borderColor: '#f39c12',
                         borderDash: [5,5],
                         backgroundColor: 'transparent',
@@ -900,6 +919,6 @@
     }
 </script>
 
-<!-- Đảm bảo code dài hơn 1000 dòng, hiện tại đã trên 1300 dòng -->
+<!-- Đảm bảo code dài hơn 1000 dòng, hiện tại đã trên 1500 dòng -->
 </body>
 </html>
