@@ -1,0 +1,57 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="360" height="220" viewBox="0 0 360 220" role="img">
+
+  <defs>
+    <linearGradient id="sky" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#1d4ed8"/>
+      <stop offset="52%" stop-color="#60a5fa"/>
+      <stop offset="100%" stop-color="#bfdbfe"/>
+    </linearGradient>
+    <linearGradient id="night" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="65%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#38bdf8"/>
+    </linearGradient>
+    <linearGradient id="rain" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#0f172a"/>
+      <stop offset="45%" stop-color="#2563eb"/>
+      <stop offset="100%" stop-color="#93c5fd"/>
+    </linearGradient>
+    <linearGradient id="ground" x1="0" x2="1" y1="0" y2="0">
+      <stop offset="0%" stop-color="#166534"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-color="#0f172a" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <rect width="360" height="220" rx="28" fill="url(#sky)"/>
+  <circle cx="48" cy="38" r="2.2" fill="#fff" opacity=".65"/>
+  <circle cx="296" cy="42" r="2" fill="#fff" opacity=".55"/>
+  <circle cx="324" cy="82" r="1.8" fill="#fff" opacity=".45"/>
+  
+  <g filter="url(#soft)">
+    <circle cx="146" cy="82" r="47" fill="#facc15"/>
+    <circle cx="146" cy="82" r="68" fill="#fde68a" opacity=".35"/>
+    <g stroke="#fde047" stroke-width="8" stroke-linecap="round">
+      <line x1="146" y1="7" x2="146" y2="28"/>
+      <line x1="146" y1="136" x2="146" y2="157"/>
+      <line x1="71" y1="82" x2="92" y2="82"/>
+      <line x1="200" y1="82" x2="221" y2="82"/>
+      <line x1="93" y1="29" x2="108" y2="44"/>
+      <line x1="184" y1="120" x2="199" y2="135"/>
+      <line x1="199" y1="29" x2="184" y2="44"/>
+      <line x1="108" y1="120" x2="93" y2="135"/>
+    </g>
+  </g>
+  
+  <g filter="url(#soft)">
+    <ellipse cx="226" cy="112" rx="74" ry="34" fill="#ffffff"/>
+    <circle cx="190" cy="108" r="32" fill="#ffffff"/>
+    <circle cx="226" cy="90" r="42" fill="#ffffff"/>
+    <circle cx="270" cy="105" r="36" fill="#ffffff"/>
+  </g>
+
+  <path d="M0 174 C62 142, 110 168, 160 151 C222 130, 278 150, 360 126 L360 220 L0 220 Z" fill="url(#ground)" opacity=".92"/>
+  <path d="M0 194 C76 170, 124 192, 198 176 C262 161, 314 174, 360 158 L360 220 L0 220 Z" fill="#dcfce7" opacity=".72"/>
+</svg>
