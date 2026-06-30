@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Dự báo thời tiết - Deep Air</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="js/auth.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+        body {
+            background: #eef2f3;
+            color: #334155;
+            min-height: 100vh;
+            position: relative;
+        }
+        .air-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            background: #eef2f3;
+        }
+        .heat-wave {
+            position: absolute;
+            width: 70vw;
+            height: 70vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 154, 107, 0.38) 0%, rgba(255, 154, 107, 0) 70%);
+            top: -20vw;
+            right: -15vw;
+            filter: blur(60px);
+            animation: pulseHeat 20s infinite alternate ease-in-out;
+            will-change: transform;
+        }
+        .humidity-cloud {
+            position: absolute;
+            width: 80vw;
+            height: 80vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(107, 212, 255, 0.38) 0%, rgba(107, 212, 255, 0) 70%);
+            bottom: -30vw;
+            left: -20vw;
+            filter: blur(80px);
+            animation: driftHumidity 25s infinite alternate ease-in-out;
+            will-change: transform;
+        }
+        .dust-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(rgba(80, 90, 100, 0.26) 1.5px, transparent 1.5px),
+                radial-gradient(rgba(80, 90, 100, 0.13) 2.5px, transparent 2.5px);
+            background-size: 70px 70px, 120px 120px;
+            background-position: 0 0, 40px 40px;
+            animation: windBlow 60s linear infinite;
+        }
+        @keyframes pulseHeat {
+            0% {
+                transform: scale(1) translate(0, 0);
+                opacity: 0.7;
+            }
+            100% {
+                transform: scale(1.3) translate(-10vw, 10vh);
+                opacity: 1;
+            }
+        }
+        @keyframes driftHumidity {
+            0% {
+                transform: scale(1) translate(0, 0);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1.2) translate(15vw, -10vh);
+                opacity: 1;
+            }
+        }
+        @keyframes windBlow {
+            0% {
+                background-position: 0px 0px, 40px 40px;
+            }
+            100% {
+                background-position: 700px 700px, 1240px 1240px;
+            }
+        }
+        @keyframes fadeSlideUp {
+            from {
+                opacity: 0;
+                transform: translateY(18px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        .site-header {
+            position: sticky;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 18px rgba(160, 175, 192, 0.18);
+            z-index: 1000;
+            padding: 12px 28px 14px;
+        }
+        .header-brand {
+            max-width: 1080px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 76px 1fr 76px;
+            align-items: center;
+            gap: 18px;
+        }
+        .header-logo img {
+            width: 66px;
+            height: 66px;
+            max-width: 66px;
+            max-height: 66px;
+            object-fit: contain;
+            display: block;
+        }
+        .header-text {
+            text-align: center;
+            color: #213f72;
+            line-height: 1.25;
+        }
+        .header-text .school-name {
+            font-size: 15px;
+            font-weight: 800;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .header-text .faculty-name,
+        .header-text .department-name {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: 3px;
+            white-space: nowrap;
+        }
+        .header-text .system-name {
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-top: 8px;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+        .nav-links {
+            max-width: 1080px;
+            margin: 12px auto 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .nav-links a,
+        .nav-links button {
+            text-decoration: none;
+            color: #213f72;
+            background: #eef5ff;
+            border: 1px solid #d8e6fb;
+            padding: 9px 14px;
+            border-radius: 999px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1.2;
+        }
+        .nav-links a:hover,
+        .nav-links button:hover,
+        .nav-links .active {
+            color: #fff;
+            background: #213f72;
+        }
+        .container {
+            max-width: 1120px;
+            margin: 30px auto 0;
+            padding: 0 22px;
+        }
+        .hero-section {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.82);
+            border-radius: 18px;
+            padding: 34px 38px;
+            box-shadow: 0 4px 20px rgba(160, 175, 192, 0.13);
+            margin-bottom: 24px;
+            transition: 0.32s;
+        }
+        .hero-section h1 {
+            color: #213f72;
+            font-size: 30px;
+            margin-bottom: 12px;
+        }
+        .hero-section p {
+            color: #64748b;
+            font-size: 16px;
+            line-height: 1.65;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 22px;
+            align-items: stretch;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.82);
+            border-radius: 18px;
+            padding: 26px;
+            box-shadow: 0 4px 20px rgba(160, 175, 192, 0.12);
+            transition: 0.32s;
+        }
+        .card:hover {
+            transform: translateY(-6px);
+            background: rgba(255, 255, 255, 0.84);
+            box-shadow: 0 18px 42px rgba(31, 38, 135, 0.13);
+        }
+        .card h3 {
+            color: #213f72;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+        }
+        .card p,
+        .card li {
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #64748b;
+        }
+
+        .weather-search {
+            display: grid;
+            grid-template-columns: minmax(220px, 1fr) auto;
+            gap: 14px;
+            align-items: end;
+            margin-top: 18px;
+        }
+        .weather-search label {
+            display: block;
+            font-weight: 700;
+            color: #213f72;
+            margin-bottom: 8px;
+        }
+        .weather-search input {
+            width: 100%;
+            padding: 13px 14px;
+            border: 1px solid #cbd5e1;
+            border-radius: 12px;
+            font-size: 15px;
+            background: rgba(255, 255, 255, 0.86);
+            outline: none;
+        }
+        .weather-search input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.14);
+        }
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 13px 28px;
+            background: linear-gradient(135deg, #2563eb, #1d4ed8);
+            color: #fff;
+            font-weight: 700;
+            font-size: 15px;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 14px rgba(37, 99, 235, 0.35);
+            letter-spacing: 0.3px;
+            white-space: nowrap;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(37, 99, 235, 0.45);
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+        }
+        .btn-primary:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
+        }
+        .btn-primary i {
+            font-size: 16px;
+        }
+
+        .weather-card-main {
+            background: linear-gradient(135deg, rgba(239, 246, 255, 0.92), rgba(255, 255, 255, 0.9));
+            border: 1px solid rgba(191, 219, 254, 0.75);
+        }
+        .weather-current {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .weather-stat {
+            border-radius: 16px;
+            padding: 18px;
+            background: rgba(255, 255, 255, 0.72);
+            border: 1px solid rgba(226, 232, 240, 0.9);
+            text-align: center;
+        }
+        .weather-visual {
+            width: 100%;
+            height: 102px;
+            object-fit: cover;
+            display: block;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            background: #dbeafe;
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+        }
+        .weather-stat i {
+            color: #2563eb;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+        .weather-stat .value {
+            font-size: 28px;
+            font-weight: 800;
+            color: #12376b;
+        }
+        .weather-stat .label {
+            color: #64748b;
+            margin-top: 6px;
+        }
+        .forecast-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+            gap: 16px;
+            margin-top: 18px;
+        }
+        .forecast-day {
+            border-radius: 16px;
+            padding: 18px;
+            background: rgba(255, 255, 255, 0.82);
+            border: 1px solid rgba(226, 232, 240, 0.92);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.06);
+        }
+        .forecast-day .date {
+            font-weight: 800;
+            color: #213f72;
+            margin-bottom: 10px;
+        }
+        .forecast-visual {
+            width: 100%;
+            height: 104px;
+            object-fit: cover;
+            display: block;
+            border-radius: 14px;
+            margin-bottom: 12px;
+            background: #dbeafe;
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+        }
+        .forecast-day i {
+            color: #2563eb;
+            font-size: 26px;
+            margin-bottom: 10px;
+        }
+        .forecast-day .temp {
+            font-weight: 800;
+            font-size: 20px;
+            color: #12376b;
+            margin-bottom: 6px;
+        }
+        .forecast-day .meta {
+            color: #64748b;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+        .weather-message {
+            margin-top: 14px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            background: rgba(239, 246, 255, 0.82);
+            color: #1e3a8a;
+            border: 1px solid rgba(191, 219, 254, 0.9);
+            line-height: 1.6;
+        }
+        .weather-message.error {
+            background: rgba(254, 242, 242, 0.9);
+            color: #991b1b;
+            border-color: rgba(252, 165, 165, 0.9);
+        }
+        .hidden {
+            display: none !important;
+        }
+
+        @media (max-width: 900px) {
+            .site-header {
+                padding: 12px 16px 14px;
+            }
+            .header-brand {
+                grid-template-columns: 76px 1fr 76px;
+                gap: 18px;
+            }
+            .header-logo img {
+                width: 56px;
+                height: 56px;
+                max-width: 56px;
+                max-height: 56px;
+            }
+            .header-text .school-name,
+            .header-text .faculty-name,
+            .header-text .department-name,
+            .header-text .system-name {
+                white-space: normal;
+                font-size: 12px;
+            }
+            .header-text .system-name {
+                font-size: 14px;
+            }
+            .container {
+                margin-top: 24px;
+                padding: 0 16px;
+            }
+            .hero-section {
+                padding: 28px 22px;
+            }
+            .hero-section h1 {
+                font-size: 25px;
+            }
+            .weather-search {
+                grid-template-columns: 1fr;
+            }
+            .weather-current {
+                grid-template-columns: 1fr 1fr;
+            }
+            .btn-primary {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+        @media (max-width: 560px) {
+            .header-brand {
+                grid-template-columns: 58px 1fr 58px;
+                gap: 18px;
+            }
+            .header-logo img {
+                width: 46px;
+                height: 46px;
+                max-width: 46px;
+                max-height: 46px;
+            }
+            .nav-links a,
+            .nav-links button {
+                font-size: 12px;
+                padding: 8px 10px;
+            }
+            .weather-current {
+                grid-template-columns: 1fr;
+            }
+            .weather-visual,
+            .forecast-visual {
+                height: 96px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="air-background">
+        <div class="heat-wave"></div>
+        <div class="humidity-cloud"></div>
+        <div class="dust-particles"></div>
+    </div>
+
+    <header class="site-header">
+        <div class="header-brand">
+            <div class="header-logo school"><img src="logo_truong.png" alt="Logo trường" /></div>
+            <div class="header-text">
+                <div class="school-name">TRƯỜNG ĐH CÔNG NGHỆ KỸ THUẬT TP.HCM</div>
+                <div class="faculty-name">KHOA ĐIỆN - ĐIỆN TỬ</div>
+                <div class="department-name">BỘ MÔN ĐIỆN TỬ - THÔNG TIN</div>
+                <div class="system-name">HỆ THỐNG GIÁM SÁT KHÔNG KHÍ</div>
+            </div>
+            <div class="header-logo faculty"><img src="logo_khoa.jpg" alt="Logo khoa" /></div>
+        </div>
+        <nav class="nav-links">
+            <a href="overview.html"><i class="fa-solid fa-house"></i> Tổng quan</a>
+            <a href="theory.html"><i class="fa-solid fa-book-open"></i> Lý thuyết</a>
+            <a href="dashboard.html"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+            <a id="optionLink" href="option.html" data-admin-only="true"><i class="fa-solid fa-sliders"></i> Tùy chọn</a>
+            <a href="weather.html" class="active"><i class="fa-solid fa-cloud-sun-rain"></i> Dự báo thời tiết</a>
+            <button type="button" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        <section class="hero-section">
+            <h1>Dự báo thời tiết</h1>
+            <p>Trang này dùng để tham khảo thời tiết bên ngoài, hỗ trợ so sánh với dữ liệu cảm biến chất lượng không khí trong hệ thống.</p>
+            <div class="weather-search">
+                <div>
+                    <label for="cityInput"><i class="fa-solid fa-location-dot"></i> Khu vực cần xem</label>
+                    <input type="text" id="cityInput" value="Ho Chi Minh City" placeholder="Nhập tên thành phố, ví dụ: Ho Chi Minh City" />
+                </div>
+                <button type="button" class="btn-primary" onclick="loadWeather()"><i class="fa-solid fa-cloud-arrow-down"></i> Cập nhật</button>
+            </div>
+            <div id="weatherMessage" class="weather-message">Đang tải dữ liệu thời tiết...</div>
+        </section>
+
+        <section class="card weather-card-main">
+            <h3><i class="fa-solid fa-cloud-sun"></i> Thời tiết hiện tại</h3>
+            <p id="placeLabel">Khu vực: --</p>
+            <div class="weather-current">
+                <div class="weather-stat">
+                    <img class="weather-visual" src="weather-assets/weather-temp.svg" alt="Minh họa nhiệt độ" />
+                    <div class="value" id="currentTemp">--</div>
+                    <div class="label">Nhiệt độ</div>
+                </div>
+                <div class="weather-stat">
+                    <img class="weather-visual" src="weather-assets/weather-humidity.svg" alt="Minh họa độ ẩm" />
+                    <div class="value" id="currentHumidity">--</div>
+                    <div class="label">Độ ẩm</div>
+                </div>
+                <div class="weather-stat">
+                    <img class="weather-visual" src="weather-assets/weather-wind.svg" alt="Minh họa tốc độ gió" />
+                    <div class="value" id="currentWind">--</div>
+                    <div class="label">Tốc độ gió</div>
+                </div>
+                <div class="weather-stat">
+                    <img class="weather-visual" id="currentStatusImage" src="weather-assets/weather-cloudy.svg" alt="Minh họa trạng thái" />
+                    <div class="value" id="currentStatus">--</div>
+                    <div class="label">Trạng thái</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="card">
+            <h3><i class="fa-solid fa-calendar-days"></i> Dự báo các ngày tới</h3>
+            <div id="forecastGrid" class="forecast-grid"></div>
+        </section>
+
+        <section class="grid">
+            <div class="card">
+                <h3><i class="fa-solid fa-circle-info"></i> Ý nghĩa với chất lượng không khí</h3>
+                <p id="environmentNote">Khi có dữ liệu thời tiết, hệ thống sẽ đưa ra nhận xét nhanh để người dùng tham khảo cùng dữ liệu bụi PM2.5 trên dashboard.</p>
+            </div>
+            <div class="card">
+                <h3><i class="fa-solid fa-user-shield"></i> Quyền truy cập</h3>
+                <p>Trang dự báo thời tiết dùng được cho cả tài khoản admin và user. Riêng trang Tùy chọn mới chỉ dành cho admin để quản lý tài khoản.</p>
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">Trang dự báo thời tiết - Deep Air Monitoring</footer>
+
+    <script>
+        function updateAdminLink() {
+            const link = document.getElementById('optionLink');
+            if (link) {
+                link.style.display = isDeepAirAdmin() ? 'inline-block' : 'none';
+            }
+        }
+
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            deepAirLogout();
+        });
+
+        document.addEventListener('DOMContentLoaded', updateAdminLink);
+        window.addEventListener('focus', updateAdminLink);
+
+        // ===== CODE DỰ BÁO THỜI TIẾT =====
+        const weatherMessage = document.getElementById('weatherMessage');
+        const cityInput = document.getElementById('cityInput');
+        const placeLabel = document.getElementById('placeLabel');
+        const currentTemp = document.getElementById('currentTemp');
+        const currentHumidity = document.getElementById('currentHumidity');
+        const currentWind = document.getElementById('currentWind');
+        const currentStatus = document.getElementById('currentStatus');
+        const currentStatusImage = document.getElementById('currentStatusImage');
+        const forecastGrid = document.getElementById('forecastGrid');
+        const environmentNote = document.getElementById('environmentNote');
+
+        function weatherCodeText(code) {
+            const map = {
+                0: 'Trời quang',
+                1: 'Ít mây',
+                2: 'Có mây',
+                3: 'Nhiều mây',
+                45: 'Sương mù',
+                48: 'Sương mù',
+                51: 'Mưa phùn',
+                53: 'Mưa phùn',
+                55: 'Mưa phùn',
+                61: 'Mưa nhẹ',
+                63: 'Mưa vừa',
+                65: 'Mưa lớn',
+                80: 'Mưa rào',
+                81: 'Mưa rào',
+                82: 'Mưa rào mạnh',
+                95: 'Dông',
+                96: 'Dông',
+                99: 'Dông'
+            };
+            return map[code] || 'Thời tiết';
+        }
+
+        function weatherScene(code) {
+            if ([0, 1].includes(code)) return 'weather-assets/weather-sunny.svg';
+            if ([2, 3].includes(code)) return 'weather-assets/weather-cloudy.svg';
+            if ([45, 48].includes(code)) return 'weather-assets/weather-fog.svg';
+            if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) return 'weather-assets/weather-rain.svg';
+            if ([95, 96, 99].includes(code)) return 'weather-assets/weather-storm.svg';
+            return 'weather-assets/weather-cloudy.svg';
+        }
+
+        function formatDate(dateText) {
+            const date = new Date(dateText + 'T00:00:00');
+            return date.toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' });
+        }
+
+        function setMessage(type, message) {
+            weatherMessage.className = type === 'error' ? 'weather-message error' : 'weather-message';
+            weatherMessage.textContent = message;
+        }
+
+        function buildEnvironmentNote(current, daily) {
+            const humidity = current.relative_humidity_2m;
+            const wind = current.wind_speed_10m;
+            const rainMax = Math.max(...(daily.precipitation_probability_max || [0]));
+            const notes = [];
+            if (rainMax >= 60) notes.push('Khả năng mưa cao, bụi ngoài trời có thể giảm sau mưa.');
+            else notes.push('Khả năng mưa không quá cao, nên tiếp tục theo dõi bụi PM2.5 trên dashboard.');
+            if (humidity >= 80) notes.push('Độ ẩm cao có thể làm cảm biến và kết quả đo môi trường dao động nhẹ.');
+            if (wind >= 20) notes.push('Gió mạnh có thể làm bụi phát tán nhanh và thay đổi theo thời điểm.');
+            if (humidity < 55 && rainMax < 40) notes.push('Thời tiết khô, bụi mịn dễ tăng nếu khu vực có nhiều xe hoặc công trình.');
+            return notes.join(' ');
+        }
+
+        async function loadWeather() {
+            const city = cityInput.value.trim() || 'Ho Chi Minh City';
+            setMessage('info', 'Đang tải dữ liệu thời tiết...');
+            forecastGrid.innerHTML = '';
+            try {
+                const geoUrl =
+                    `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(city)}&count=1&language=vi&format=json`;
+                const geoResponse = await fetch(geoUrl);
+                const geoData = await geoResponse.json();
+                if (!geoData.results || !geoData.results.length) {
+                    throw new Error('Không tìm thấy khu vực này. Vui lòng nhập tên khác.');
+                }
+                const place = geoData.results[0];
+                const forecastUrl =
+                    `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=5`;
+                const response = await fetch(forecastUrl);
+                const data = await response.json();
+                const current = data.current;
+                const daily = data.daily;
+                placeLabel.textContent =
+                    `Khu vực: ${place.name}${place.admin1 ? ', ' + place.admin1 : ''}${place.country ? ', ' + place.country : ''}`;
+                currentTemp.textContent = `${Math.round(current.temperature_2m)}°C`;
+                currentHumidity.textContent = `${current.relative_humidity_2m}%`;
+                currentWind.textContent = `${Math.round(current.wind_speed_10m)} km/h`;
+                currentStatus.textContent = weatherCodeText(current.weather_code);
+                currentStatusImage.src = weatherScene(current.weather_code);
+                currentStatusImage.alt = `Minh họa ${weatherCodeText(current.weather_code)}`;
+                forecastGrid.innerHTML = daily.time.map((day, index) => {
+                    const statusText = weatherCodeText(daily.weather_code[index]);
+                    return `
+                    <div class="forecast-day">
+                        <img class="forecast-visual" src="${weatherScene(daily.weather_code[index])}" alt="Minh họa ${statusText}">
+                        <div class="date">${formatDate(day)}</div>
+                        <div class="temp">${Math.round(daily.temperature_2m_min[index])}°C - ${Math.round(daily.temperature_2m_max[index])}°C</div>
+                        <div class="meta">${statusText}</div>
+                        <div class="meta">Khả năng mưa: ${daily.precipitation_probability_max[index]}%</div>
+                    </div>`;
+                }).join('');
+                environmentNote.textContent = buildEnvironmentNote(current, daily);
+                setMessage('info', 'Đã cập nhật dữ liệu thời tiết thành công.');
+            } catch (error) {
+                setMessage('error', error.message || 'Không tải được dữ liệu thời tiết. Vui lòng thử lại sau.');
+                placeLabel.textContent = 'Khu vực: --';
+                currentTemp.textContent = '--';
+                currentHumidity.textContent = '--';
+                currentWind.textContent = '--';
+                currentStatus.textContent = '--';
+                currentStatusImage.src = 'weather-assets/weather-cloudy.svg';
+            }
+        }
+
+        cityInput.addEventListener('keydown', function(event) {
+            if (event.key === 'Enter') loadWeather();
+        });
+
+        loadWeather();
+    </script>
+</body>
+</html>

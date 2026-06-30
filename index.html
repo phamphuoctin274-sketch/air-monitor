@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Đăng Nhập - Hệ Thống Giám Sát Chất Lượng Không Khí</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="js/auth.js"></script>
+    <style>
+        /* === GIỮ NGUYÊN CSS CŨ === */
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Roboto', sans-serif; }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: #eef2f3;
+            padding: 20px;
+        }
+        .login-container {
+            position: relative;
+            width: min(960px, 100%);
+            background: #ffffff;
+            padding: 28px clamp(24px, 4vw, 42px) 36px;
+            border-radius: 18px;
+            box-shadow: 0 10px 30px rgba(160, 175, 192, 0.25);
+        }
+        .brand-header { text-align: center; margin-bottom: 24px; }
+        .org-header {
+            --logo-size: 118px;
+            display: grid;
+            grid-template-columns: var(--logo-size) minmax(0, 1fr) var(--logo-size);
+            align-items: center;
+            gap: 24px;
+            margin-bottom: 20px;
+        }
+        .logo-box {
+            width: var(--logo-size);
+            height: var(--logo-size);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .logo-box img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .org-text {
+            min-width: 0;
+            text-align: center;
+            color: #163b72;
+            line-height: 1.35;
+        }
+        .org-text .line-1,
+        .org-text .line-2,
+        .org-text .line-3 {
+            font-weight: 700;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .org-text .line-1 { font-size: clamp(21px, 2.15vw, 26px); letter-spacing: -0.3px; }
+        .org-text .line-2 { font-size: clamp(18px, 1.8vw, 22px); margin-top: 7px; }
+        .org-text .line-3 { font-size: clamp(16px, 1.55vw, 19px); margin-top: 7px; }
+        .system-icon { font-size: 32px; color: #213f72; margin: 2px 0 8px; }
+        .system-title {
+            color: #213f72;
+            font-weight: 700;
+            font-size: clamp(23px, 2.5vw, 30px);
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+        }
+        .system-note { font-size: 12px; color: #94a3b8; margin-top: 8px; }
+        .form-wrap { width: min(440px, 100%); margin: 0 auto; }
+        .input-group { position: relative; margin-bottom: 18px; }
+        .input-group input {
+            width: 100%; padding: 14px 42px 14px 16px; border: 1px solid #cbd5e1; border-radius: 10px;
+            outline: none; font-size: 15px; background-color: #f8fafc; color: #334155; transition: all 0.3s ease;
+        }
+        .input-group input:focus { border-color: #3b82f6; background-color: #fff; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15); }
+        .input-group i { position: absolute; right: 16px; top: 50%; transform: translateY(-50%); color: #94a3b8; cursor: pointer; }
+        .utilities { display: flex; justify-content: space-between; align-items: center; margin-bottom: 26px; font-size: 14px; gap: 12px; }
+        .utilities label { color: #64748b; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        .utilities input[type="checkbox"] { accent-color: #3b82f6; }
+        .link-button { color: #3b82f6; border: none; background: transparent; text-decoration: none; font-weight: 500; cursor: pointer; font-size: 14px; }
+        .link-button:hover { color: #1d4ed8; text-decoration: underline; }
+        .btn-login, .btn-primary {
+            width: 100%; padding: 14px; background: linear-gradient(135deg, #213f72 0%, #1e40af 100%);
+            border: none; border-radius: 10px; color: white; font-size: 16px; font-weight: 500; cursor: pointer;
+            transition: all 0.3s ease; box-shadow: 0 4px 12px rgba(33, 63, 114, 0.2);
+        }
+        .btn-login:hover, .btn-primary:hover { opacity: 0.95; transform: translateY(-1px); box-shadow: 0 6px 20px rgba(33, 63, 114, 0.3); }
+        .btn-google {
+            width: 100%;
+            padding: 14px;
+            background: #ffffff;
+            border: 1.5px solid #cbd5e1;
+            border-radius: 10px;
+            color: #334155;
+            font-weight: 500;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: 0.2s;
+            margin: 10px 0 6px;
+            font-size: 15px;
+        }
+        .btn-google:hover { background: #f8fafc; border-color: #94a3b8; }
+        .btn-google i { font-size: 20px; color: #ea4335; }
+        .divider {
+            display: flex;
+            align-items: center;
+            margin: 16px 0 14px;
+            color: #94a3b8;
+            font-size: 13px;
+        }
+        .divider::before, .divider::after {
+            content: "";
+            flex: 1;
+            height: 1px;
+            background: #e2e8f0;
+        }
+        .divider::before { margin-right: 16px; }
+        .divider::after { margin-left: 16px; }
+        .register-link { text-align: center; margin-top: 24px; font-size: 14px; color: #64748b; line-height: 1.5; }
+        .error-message { color: #ef4444; font-size: 13px; margin-top: 6px; padding-left: 4px; display: none; }
+        .message-box { display: none; margin-bottom: 18px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.45; }
+        .message-box.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+        .message-box.success { background: #ecfdf5; color: #047857; border: 1px solid #a7f3d0; }
+        .password-rule { margin: -6px 0 18px; color: #64748b; font-size: 12px; line-height: 1.45; }
+        .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.48); z-index: 1000; align-items: center; justify-content: center; padding: 18px; }
+        .modal-backdrop.show { display: flex; }
+        .modal-card { width: min(520px, 100%); max-height: 90vh; overflow-y: auto; background: #fff; border-radius: 16px; padding: 26px; box-shadow: 0 20px 50px rgba(15, 23, 42, 0.2); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; gap: 14px; margin-bottom: 16px; }
+        .modal-header h3 { color: #213f72; font-size: 20px; }
+        .close-btn { border: none; background: #eef2f7; color: #334155; width: 34px; height: 34px; border-radius: 50%; cursor: pointer; }
+        .modal-card p { color: #64748b; font-size: 14px; line-height: 1.55; margin-bottom: 16px; }
+        .modal-card .input-group { margin-bottom: 14px; }
+        .air-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            background: #eef2f3;
+        }
+        .heat-wave {
+            position: absolute;
+            width: 70vw;
+            height: 70vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 154, 107, 0.38) 0%, rgba(255, 154, 107, 0) 70%);
+            top: -20vw;
+            right: -15vw;
+            filter: blur(60px);
+            animation: pulseHeat 20s infinite alternate ease-in-out;
+            will-change: transform;
+        }
+        .humidity-cloud {
+            position: absolute;
+            width: 80vw;
+            height: 80vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(107, 212, 255, 0.38) 0%, rgba(107, 212, 255, 0) 70%);
+            bottom: -30vw;
+            left: -20vw;
+            filter: blur(80px);
+            animation: driftHumidity 25s infinite alternate ease-in-out;
+            will-change: transform;
+        }
+        .dust-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image:
+                radial-gradient(rgba(80, 90, 100, 0.26) 1.5px, transparent 1.5px),
+                radial-gradient(rgba(80, 90, 100, 0.13) 2.5px, transparent 2.5px);
+            background-size: 70px 70px, 120px 120px;
+            background-position: 0 0, 40px 40px;
+            animation: windBlow 60s linear infinite;
+        }
+        @keyframes pulseHeat {
+            0% { transform: scale(1) translate(0, 0); opacity: 0.7; }
+            100% { transform: scale(1.3) translate(-10vw, 10vh); opacity: 1; }
+        }
+        @keyframes driftHumidity {
+            0% { transform: scale(1) translate(0, 0); opacity: 0.8; }
+            100% { transform: scale(1.2) translate(15vw, -10vh); opacity: 1; }
+        }
+        @keyframes windBlow {
+            0% { background-position: 0px 0px, 40px 40px; }
+            100% { background-position: 700px 700px, 1240px 1240px; }
+        }
+        @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(18px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .login-container {
+            background: rgba(255, 255, 255, 0.74);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.82);
+            box-shadow: 0 10px 40px rgba(31, 38, 135, 0.10);
+            animation: fadeSlideUp 0.65s ease both;
+        }
+        .modal-card {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.82);
+        }
+        @media (max-width: 900px) {
+            .login-container { width: min(840px, 100%); padding: 28px 26px 36px; }
+            .org-header { --logo-size: 118px; gap: 18px; }
+            .org-text .line-1 { font-size: clamp(18px, 2.25vw, 21px); letter-spacing: -0.45px; }
+            .org-text .line-2 { font-size: clamp(16px, 2vw, 19px); }
+            .org-text .line-3 { font-size: clamp(14px, 1.8vw, 17px); }
+        }
+        @media (max-width: 720px) {
+            .org-header {
+                grid-template-columns: 1fr 1fr;
+                grid-template-areas:
+                    "left right"
+                    "text text";
+                justify-items: center;
+                row-gap: 12px;
+                --logo-size: 92px;
+            }
+            .org-logo-left { grid-area: left; }
+            .org-logo-right { grid-area: right; }
+            .org-text { grid-area: text; }
+            .org-text .line-1,
+            .org-text .line-2,
+            .org-text .line-3 { white-space: normal; }
+            .org-text .line-1 { font-size: 17px; }
+            .org-text .line-2 { font-size: 15px; }
+            .org-text .line-3 { font-size: 14px; }
+            .system-title { font-size: 21px; }
+        }
+        @media (max-width: 520px) {
+            .login-container { width: 100%; padding: 24px 18px 32px; }
+            .utilities { flex-direction: column; align-items: flex-start; }
+            .org-header { --logo-size: 82px; gap: 10px; }
+            .org-text .line-1 { font-size: 15px; }
+            .org-text .line-2 { font-size: 14px; }
+            .org-text .line-3 { font-size: 13px; }
+        }
+        .login-note { margin-top: 18px; text-align: center; color: #8492ad; font-size: 14px; }
+    </style>
+</head>
+<body>
+    <div class="air-background">
+        <div class="heat-wave"></div>
+        <div class="humidity-cloud"></div>
+        <div class="dust-particles"></div>
+    </div>
+
+    <div class="login-container">
+        <div class="brand-header">
+            <div class="org-header">
+                <div class="logo-box org-logo-left">
+                    <img src="logo_truong.png" alt="Logo Trường HCMUTE">
+                </div>
+                <div class="org-text">
+                    <div class="line-1">TRƯỜNG ĐẠI HỌC CÔNG NGHỆ KỸ THUẬT TP.HCM</div>
+                    <div class="line-2">KHOA ĐIỆN - ĐIỆN TỬ</div>
+                    <div class="line-3">BỘ MÔN ĐIỆN TỬ - THÔNG TIN</div>
+                </div>
+                <div class="logo-box org-logo-right">
+                    <img src="logo_khoa.jpg" alt="Logo Khoa Điện - Điện tử">
+                </div>
+            </div>
+            <div class="system-icon"><i class="fa-solid fa-wind"></i></div>
+            <div class="system-title">HỆ THỐNG GIÁM SÁT CHẤT LƯỢNG KHÔNG KHÍ</div>
+            <div class="system-note">Chỉ tài khoản hợp lệ mới có thể vào hệ thống</div>
+        </div>
+
+        <div class="form-wrap">
+            <div class="message-box error" id="loginErrorBox"></div>
+
+            <form id="loginForm" onsubmit="handleLogin(event)">
+                <div class="input-group">
+                    <input type="text" id="username" placeholder="Tên đăng nhập hoặc Email" autocomplete="username" required>
+                    <div class="error-message" id="usernameError">Vui lòng nhập tên đăng nhập hoặc email.</div>
+                </div>
+                <div class="input-group">
+                    <input type="password" id="password" placeholder="Mật khẩu" autocomplete="current-password" required>
+                    <i class="fa-solid fa-key" id="togglePassword"></i>
+                    <div class="error-message" id="passwordError">Vui lòng nhập mật khẩu.</div>
+                </div>
+                <div class="utilities">
+                    <label><input type="checkbox" id="rememberMe"> Ghi nhớ đăng nhập</label>
+                    <button type="button" class="link-button" onclick="openForgotModal()">Quên mật khẩu?</button>
+                </div>
+                <button type="submit" class="btn-login">Đăng Nhập</button>
+            </form>
+
+            <div class="divider">hoặc</div>
+            <button type="button" class="btn-google" id="googleLoginBtn">
+                <i class="fa-brands fa-google"></i> Đăng nhập với Google
+            </button>
+
+            <div class="register-link">
+                Chưa có tài khoản?
+                <button type="button" class="link-button" onclick="openRegisterModal()">Tạo tài khoản mới</button>
+            </div>
+            <div class="login-note">
+                <i class="fa-solid fa-info-circle"></i> Tài khoản demo: <strong>admin</strong> / <strong>Admin@123</strong>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal đăng ký -->
+    <div class="modal-backdrop" id="registerModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-user-plus"></i> Tạo tài khoản mới</h3>
+                <button type="button" class="close-btn" onclick="closeRegisterModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p>Tài khoản sẽ được tạo trên Firebase. Sau khi đăng ký, bạn có thể đăng nhập bằng email.</p>
+            <div class="message-box" id="registerMessage"></div>
+            <form onsubmit="handleRegisterAccount(event)">
+                <div class="input-group"><input type="text" id="registerUsername" placeholder="Tên đăng nhập (không bắt buộc)" ></div>
+                <div class="input-group"><input type="text" id="registerDisplayName" placeholder="Họ tên / tên hiển thị" required></div>
+                <div class="input-group"><input type="email" id="registerEmail" placeholder="Email" autocomplete="email" required></div>
+                <div class="input-group"><input type="password" id="registerPassword" placeholder="Mật khẩu (tối thiểu 6 ký tự)" autocomplete="new-password" required></div>
+                <div class="input-group"><input type="password" id="registerConfirmPassword" placeholder="Nhập lại mật khẩu" autocomplete="new-password" required></div>
+                <div class="input-group"><input type="text" id="registerRecoveryCode" placeholder="Mã khôi phục (không bắt buộc)"></div>
+                <button type="submit" class="btn-primary">Tạo tài khoản</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal quên mật khẩu -->
+    <div class="modal-backdrop" id="forgotModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-key"></i> Quên mật khẩu</h3>
+                <button type="button" class="close-btn" onclick="closeForgotModal()"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <p>Nhập email của bạn, chúng tôi sẽ gửi link đặt lại mật khẩu.</p>
+            <div class="message-box" id="forgotMessage"></div>
+            <form onsubmit="handleForgotPassword(event)">
+                <div class="input-group"><input type="email" id="forgotEmail" placeholder="Email của bạn" required></div>
+                <button type="submit" class="btn-primary">Gửi email khôi phục</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Toggle password
+        const togglePassword = document.querySelector('#togglePassword');
+        const passwordInput = document.querySelector('#password');
+
+        togglePassword.addEventListener('click', function () {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            this.classList.toggle('fa-key');
+            this.classList.toggle('fa-unlock');
+        });
+
+        function showMessage(element, type, message) {
+            element.className = `message-box ${type}`;
+            element.textContent = message;
+            element.style.display = 'block';
+        }
+
+        function hideMessage(element) {
+            element.style.display = 'none';
+        }
+
+        // Đăng nhập Google
+        document.getElementById('googleLoginBtn').addEventListener('click', function() {
+            deepAirLoginWithGoogle();
+        });
+
+        // Đăng nhập (hỗ trợ demo + Firebase)
+        async function handleLogin(event) {
+            event.preventDefault();
+            const identifier = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const usernameError = document.getElementById('usernameError');
+            const passwordError = document.getElementById('passwordError');
+            const loginErrorBox = document.getElementById('loginErrorBox');
+
+            usernameError.style.display = identifier ? 'none' : 'block';
+            passwordError.style.display = password ? 'none' : 'block';
+
+            if (!identifier || !password) {
+                hideMessage(loginErrorBox);
+                return;
+            }
+
+            const result = await deepAirLogin(identifier, password);
+            if (!result.success) {
+                showMessage(loginErrorBox, 'error', result.message);
+                passwordInput.value = '';
+                passwordInput.focus();
+                return;
+            }
+            hideMessage(loginErrorBox);
+            window.location.href = 'overview.html';
+        }
+
+        // Đăng ký Firebase
+        async function handleRegisterAccount(event) {
+            event.preventDefault();
+            const username = document.getElementById('registerUsername').value.trim();
+            const displayName = document.getElementById('registerDisplayName').value.trim();
+            const email = document.getElementById('registerEmail').value.trim();
+            const password = document.getElementById('registerPassword').value;
+            const confirm = document.getElementById('registerConfirmPassword').value;
+            const recoveryCode = document.getElementById('registerRecoveryCode').value.trim();
+            const messageBox = document.getElementById('registerMessage');
+
+            if (password !== confirm) {
+                showMessage(messageBox, 'error', 'Mật khẩu nhập lại chưa trùng khớp.');
+                return;
+            }
+            if (password.length < 6) {
+                showMessage(messageBox, 'error', 'Mật khẩu phải có ít nhất 6 ký tự.');
+                return;
+            }
+
+            const result = await deepAirRegisterAccount({
+                username: username || email.split('@')[0],
+                displayName,
+                email,
+                password,
+                recoveryCode
+            });
+            if (!result.success) {
+                showMessage(messageBox, 'error', result.message);
+                return;
+            }
+            showMessage(messageBox, 'success', result.message + ' Đang chuyển hướng...');
+            setTimeout(() => {
+                window.location.href = 'overview.html';
+            }, 1200);
+        }
+
+        // Quên mật khẩu Firebase
+        async function handleForgotPassword(event) {
+            event.preventDefault();
+            const email = document.getElementById('forgotEmail').value.trim();
+            const messageBox = document.getElementById('forgotMessage');
+            if (!email) {
+                showMessage(messageBox, 'error', 'Vui lòng nhập email.');
+                return;
+            }
+            const result = await deepAirResetPassword(email);
+            if (!result.success) {
+                showMessage(messageBox, 'error', result.message);
+                return;
+            }
+            showMessage(messageBox, 'success', result.message);
+            document.getElementById('forgotEmail').value = '';
+            setTimeout(closeForgotModal, 4000);
+        }
+
+        // Mở/đóng modal
+        function openRegisterModal() {
+            document.getElementById('registerModal').classList.add('show');
+            hideMessage(document.getElementById('registerMessage'));
+        }
+        function closeRegisterModal() {
+            document.getElementById('registerModal').classList.remove('show');
+        }
+        function openForgotModal() {
+            document.getElementById('forgotModal').classList.add('show');
+            hideMessage(document.getElementById('forgotMessage'));
+        }
+        function closeForgotModal() {
+            document.getElementById('forgotModal').classList.remove('show');
+        }
+
+        // Đóng modal khi click ra ngoài
+        document.querySelectorAll('.modal-backdrop').forEach(modal => {
+            modal.addEventListener('click', function(e) {
+                if (e.target === this) {
+                    this.classList.remove('show');
+                }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tổng quan - Deep Air</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+    <script src="js/auth.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Roboto', sans-serif;
+        }
+
+        body {
+            background: #eef2f3;
+            color: #334155;
+            min-height: 100vh;
+            position: relative;
+        }
+
+        /* Background động */
+        .air-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            background: #eef2f3;
+        }
+        .heat-wave {
+            position: absolute;
+            width: 70vw;
+            height: 70vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(255, 154, 107, 0.38) 0%, rgba(255, 154, 107, 0) 70%);
+            top: -20vw;
+            right: -15vw;
+            filter: blur(60px);
+            animation: pulseHeat 20s infinite alternate ease-in-out;
+            will-change: transform;
+        }
+        .humidity-cloud {
+            position: absolute;
+            width: 80vw;
+            height: 80vw;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(107, 212, 255, 0.38) 0%, rgba(107, 212, 255, 0) 70%);
+            bottom: -30vw;
+            left: -20vw;
+            filter: blur(80px);
+            animation: driftHumidity 25s infinite alternate ease-in-out;
+            will-change: transform;
+        }
+        .dust-particles {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: radial-gradient(rgba(80, 90, 100, 0.26) 1.5px, transparent 1.5px),
+                radial-gradient(rgba(80, 90, 100, 0.13) 2.5px, transparent 2.5px);
+            background-size: 70px 70px, 120px 120px;
+            background-position: 0 0, 40px 40px;
+            animation: windBlow 60s linear infinite;
+        }
+
+        @keyframes pulseHeat {
+            0% {
+                transform: scale(1) translate(0, 0);
+                opacity: 0.7;
+            }
+            100% {
+                transform: scale(1.3) translate(-10vw, 10vh);
+                opacity: 1;
+            }
+        }
+        @keyframes driftHumidity {
+            0% {
+                transform: scale(1) translate(0, 0);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1.2) translate(15vw, -10vh);
+                opacity: 1;
+            }
+        }
+        @keyframes windBlow {
+            0% {
+                background-position: 0px 0px, 40px 40px;
+            }
+            100% {
+                background-position: 700px 700px, 1240px 1240px;
+            }
+        }
+
+        /* Header */
+        .site-header {
+            position: sticky;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.97);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 18px rgba(160, 175, 192, 0.18);
+            z-index: 1000;
+            padding: 12px 28px 14px;
+        }
+        .header-brand {
+            max-width: 1080px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 76px 1fr 76px;
+            align-items: center;
+            gap: 18px;
+        }
+        .header-logo img {
+            width: 66px;
+            height: 66px;
+            max-width: 66px;
+            max-height: 66px;
+            object-fit: contain;
+            display: block;
+        }
+        .header-text {
+            text-align: center;
+            color: #213f72;
+            line-height: 1.25;
+        }
+        .header-text .school-name {
+            font-size: 15px;
+            font-weight: 800;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .header-text .faculty-name,
+        .header-text .department-name {
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            margin-top: 3px;
+            white-space: nowrap;
+        }
+        .header-text .system-name {
+            font-size: 18px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-top: 8px;
+            letter-spacing: 0.2px;
+            white-space: nowrap;
+        }
+
+        /* Navigation */
+        .nav-links {
+            max-width: 1080px;
+            margin: 12px auto 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .nav-links a,
+        .nav-links button {
+            text-decoration: none;
+            color: #213f72;
+            background: #eef5ff;
+            border: 1px solid #d8e6fb;
+            padding: 9px 14px;
+            border-radius: 999px;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 14px;
+            line-height: 1.2;
+        }
+        .nav-links a:hover,
+        .nav-links button:hover,
+        .nav-links .active {
+            color: #fff;
+            background: #213f72;
+        }
+
+        /* Container */
+        .container {
+            max-width: 1120px;
+            margin: 30px auto 0;
+            padding: 0 22px;
+        }
+
+        .hero-section {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.82);
+            border-radius: 18px;
+            padding: 34px 38px;
+            box-shadow: 0 4px 20px rgba(160, 175, 192, 0.13);
+            margin-bottom: 24px;
+            transition: 0.32s;
+        }
+        .hero-section h1 {
+            color: #213f72;
+            font-size: 30px;
+            margin-bottom: 12px;
+        }
+        .hero-section p {
+            color: #64748b;
+            font-size: 16px;
+            line-height: 1.65;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 22px;
+            align-items: stretch;
+        }
+        .card {
+            background: rgba(255, 255, 255, 0.72);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.82);
+            border-radius: 18px;
+            padding: 26px;
+            box-shadow: 0 4px 20px rgba(160, 175, 192, 0.12);
+            transition: 0.32s;
+        }
+        .card:hover {
+            transform: translateY(-6px);
+            background: rgba(255, 255, 255, 0.84);
+            box-shadow: 0 18px 42px rgba(31, 38, 135, 0.13);
+        }
+        .card h3 {
+            color: #213f72;
+            margin-bottom: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 20px;
+        }
+        .card p,
+        .card li {
+            color: #475569;
+            line-height: 1.6;
+            margin-bottom: 10px;
+            font-size: 15px;
+        }
+        .card ul {
+            list-style: none;
+        }
+        .card li i {
+            color: #2563eb;
+            margin-right: 8px;
+        }
+        .wide {
+            grid-column: 1 / -1;
+        }
+
+        .project-img {
+            width: min(100%, 640px);
+            max-height: 420px;
+            object-fit: contain;
+            display: block;
+            margin: 18px auto 0;
+            border-radius: 14px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            box-shadow: 0 12px 28px rgba(31, 38, 135, 0.12);
+            transition: 0.35s;
+        }
+        .project-img:hover {
+            transform: scale(1.015);
+            box-shadow: 0 18px 38px rgba(31, 38, 135, 0.16);
+        }
+
+        .footer {
+            text-align: center;
+            padding: 24px;
+            color: #64748b;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .site-header {
+                padding: 12px 16px 14px;
+            }
+            .header-brand {
+                grid-template-columns: 76px 1fr 76px;
+                gap: 18px;
+            }
+            .header-logo img {
+                width: 56px;
+                height: 56px;
+                max-width: 56px;
+                max-height: 56px;
+            }
+            .header-text .school-name,
+            .header-text .faculty-name,
+            .header-text .department-name,
+            .header-text .system-name {
+                white-space: normal;
+                font-size: 12px;
+            }
+            .header-text .system-name {
+                font-size: 14px;
+            }
+            .container {
+                margin-top: 24px;
+                padding: 0 16px;
+            }
+            .hero-section {
+                padding: 28px 22px;
+            }
+            .hero-section h1 {
+                font-size: 25px;
+            }
+        }
+        @media (max-width: 560px) {
+            .header-brand {
+                grid-template-columns: 58px 1fr 58px;
+                gap: 18px;
+            }
+            .header-logo img {
+                width: 46px;
+                height: 46px;
+                max-width: 46px;
+                max-height: 46px;
+            }
+            .nav-links a,
+            .nav-links button {
+                font-size: 12px;
+                padding: 8px 10px;
+            }
+            .project-img {
+                max-height: 320px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background động -->
+    <div class="air-background">
+        <div class="heat-wave"></div>
+        <div class="humidity-cloud"></div>
+        <div class="dust-particles"></div>
+    </div>
+
+    <!-- Header -->
+    <header class="site-header">
+        <div class="header-brand">
+            <div class="header-logo school"><img src="logo_truong.png" alt="Logo trường" /></div>
+            <div class="header-text">
+                <div class="school-name">TRƯỜNG ĐH CÔNG NGHỆ KỸ THUẬT TP.HCM</div>
+                <div class="faculty-name">KHOA ĐIỆN - ĐIỆN TỬ</div>
+                <div class="department-name">BỘ MÔN ĐIỆN TỬ - THÔNG TIN</div>
+                <div class="system-name">HỆ THỐNG GIÁM SÁT KHÔNG KHÍ</div>
+            </div>
+            <div class="header-logo faculty"><img src="logo_khoa.jpg" alt="Logo khoa" /></div>
+        </div>
+        <nav class="nav-links">
+            <a href="overview.html" class="active"><i class="fa-solid fa-house"></i> Tổng quan</a>
+            <a href="theory.html"><i class="fa-solid fa-book-open"></i> Lý thuyết</a>
+            <a href="dashboard.html"><i class="fa-solid fa-gauge-high"></i> Dashboard</a>
+            <a id="optionLink" href="option.html" data-admin-only="true"><i class="fa-solid fa-sliders"></i> Tùy chọn</a>
+            <a href="weather.html"><i class="fa-solid fa-cloud-sun-rain"></i> Dự báo thời tiết</a>
+            <button type="button" id="logoutBtn"><i class="fa-solid fa-right-from-bracket"></i> Đăng xuất</button>
+        </nav>
+    </header>
+
+    <!-- Nội dung -->
+    <main class="container">
+        <section class="hero-section">
+            <h1>Tổng quan hệ thống giám sát chất lượng không khí</h1>
+            <p>Hệ thống giám sát chất lượng không khí là website hỗ trợ theo dõi các thông số môi trường theo thời gian thực. Hệ thống nhận dữ liệu từ thiết bị IoT, lưu trên Firebase Realtime Database và hiển thị lên dashboard để người dùng dễ quan sát, thống kê, xuất dữ liệu và đánh giá chất lượng không khí.</p>
+        </section>
+
+        <section class="grid">
+            <div class="card">
+                <h3><i class="fa-solid fa-microchip"></i> Khối phần cứng</h3>
+                <ul>
+                    <li><i class="fa-solid fa-check"></i> Thiết bị IoT thu thập nhiệt độ, độ ẩm và bụi PM2.5.</li>
+                    <li><i class="fa-solid fa-check"></i> Dữ liệu được gửi lên Firebase qua Internet.</li>
+                    <li><i class="fa-solid fa-check"></i> Phù hợp demo mô hình giám sát môi trường.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3><i class="fa-solid fa-database"></i> Khối dữ liệu</h3>
+                <ul>
+                    <li><i class="fa-solid fa-check"></i> Firebase Realtime Database lưu trữ trung gian.</li>
+                    <li><i class="fa-solid fa-check"></i> Website đọc dữ liệu từ node AirQuality.</li>
+                    <li><i class="fa-solid fa-check"></i> Mỗi bản ghi gồm: thời gian, nhiệt độ, độ ẩm, bụi.</li>
+                </ul>
+            </div>
+            <div class="card">
+                <h3><i class="fa-solid fa-chart-line"></i> Khối giao diện</h3>
+                <ul>
+                    <li><i class="fa-solid fa-check"></i> Dashboard hiển thị dữ liệu hiện tại và biểu đồ lịch sử.</li>
+                    <li><i class="fa-solid fa-check"></i> Bộ lọc thời gian, xuất Excel, dự đoán xu hướng.</li>
+                    <li><i class="fa-solid fa-check"></i> Gồm: đăng nhập, tổng quan, lý thuyết, dashboard, tùy chọn.</li>
+                </ul>
+            </div>
+            <div class="card wide">
+                <h3><i class="fa-solid fa-diagram-project"></i> Sơ đồ phần cứng hệ thống</h3>
+                <p>Ảnh minh họa mô hình kết nối phần cứng trong đồ án.</p>
+                <img src="Sodophancunghethong.jpg" alt="Sơ đồ phần cứng" class="project-img" />
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">Deep Air Monitoring - HCMUTE</footer>
+
+    <script>
+   
+        function updateAdminLink() {
+            const link = document.getElementById('optionLink');
+            if (link) {
+                link.style.display = isDeepAirAdmin() ? 'inline-block' : 'none';
+            }
+        }
+
+        // Đăng xuất
+        document.getElementById('logoutBtn').addEventListener('click', function() {
+            deepAirLogout();
+        });
+
+        // Cập nhật khi tải trang và khi focus lại
+        document.addEventListener('DOMContentLoaded', updateAdminLink);
+        window.addEventListener('focus', updateAdminLink);
+    </script>
+</body>
+</html>
