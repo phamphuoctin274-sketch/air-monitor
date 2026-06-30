@@ -16,67 +16,8 @@ if (!firebase.apps.length) {
 const auth = firebase.auth();
 const provider = new firebase.auth.GoogleAuthProvider();
 
-// === HÀM LẤY DANH SÁCH ADMIN TỪ LOCAL ===
-function getLocalAdminEmails() {
-    const accounts = deepAirGetAccounts();
-    return accounts.filter(acc => acc.role === 'admin').map(acc => acc.email).filter(Boolean);
-}
-
-// === XÁC ĐỊNH ROLE DỰA TRÊN EMAIL ===
-function getUserRole(email) {
-    if (!email) return 'user';
-    const adminEmails = getLocalAdminEmails();
-    // Thêm email admin cố định nếu muốn (phòng trường hợp)
-    const fixedAdmins = ['phamphuoctin274@gmail.com', 'admin@gmail.com'];
-    const allAdmins = [...new Set([...adminEmails, ...fixedAdmins])];
-    return allAdmins.includes(email.toLowerCase()) ? 'admin' : 'user';
-}
-
-// === QUẢN LÝ SESSION ===
-function setSession(user) {
-    const role = getUserRole(user.email);
-    localStorage.setItem('deepAirLoggedIn', 'true');
-    localStorage.setItem('deepAirUser', user.displayName || user.email);
-    localStorage.setItem('deepAirEmail', user.email);
-    localStorage.setItem('deepAirRole', role);
-    localStorage.setItem('deepAirUsername', user.email);
-}
-
-function setDemoSession(username, displayName, role) {
-    localStorage.setItem('deepAirLoggedIn', 'true');
-    localStorage.setItem('deepAirUser', displayName || username);
-    localStorage.setItem('deepAirEmail', '');
-    localStorage.setItem('deepAirRole', role || 'admin');
-    localStorage.setItem('deepAirUsername', username);
-}
-
-function clearSession() {
-    localStorage.removeItem('deepAirLoggedIn');
-    localStorage.removeItem('deepAirUser');
-    localStorage.removeItem('deepAirEmail');
-    localStorage.removeItem('deepAirRole');
-    localStorage.removeItem('deepAirUsername');
-}
-
-function isDeepAirLoggedIn() {
-    return localStorage.getItem('deepAirLoggedIn') === 'true';
-}
-
-function getDeepAirCurrentUser() {
-    return localStorage.getItem('deepAirUser') || 'Người dùng';
-}
-
-function getDeepAirCurrentUsername() {
-    return localStorage.getItem('deepAirUsername') || '';
-}
-
-function getDeepAirCurrentRole() {
-    return localStorage.getItem('deepAirRole') || '';
-}
-
-function isDeepAirAdmin() {
-    return getDeepAirCurrentRole() === 'admin';
-}
+// === DANH SÁCH ADMIN HARDCODE (DÙNG KHI KHÔNG CÓ LOCAL) ===
+const adminEmails = ['phamphuoctin274@gmail.com', 'admin@gmail.com'];
 
 // === QUẢN LÝ TÀI KHOẢN LOCAL ===
 const DEEP_AIR_ACCOUNT_KEY = "deepAirAccounts";
@@ -171,19 +112,77 @@ function deepAirGetAccountDetail(username) {
     return { ...account };
 }
 
-// ================================================================
-// === ĐĂNG NHẬP CHÍNH: KIỂM TRA DEMO TRƯỚC, SAU ĐÓ MỚI FIREBASE ===
-// ================================================================
+// ===== LẤY ROLE TỪ LOCALSTORAGE TRƯỚC =====
+function getRoleFromLocal(email) {
+    if (!email) return null;
+    const accounts = deepAirGetAccounts();
+    const account = accounts.find(acc => acc.email === email);
+    return account ? account.role : null;
+}
+
+function getUserRole(email) {
+    // Ưu tiên role từ localStorage
+    const localRole = getRoleFromLocal(email);
+    if (localRole) return localRole;
+    // Fallback: danh sách hardcode
+    return adminEmails.includes(email ? email.toLowerCase() : '') ? 'admin' : 'user';
+}
+
+// === QUẢN LÝ SESSION ===
+function setSession(user) {
+    const role = getUserRole(user.email);
+    localStorage.setItem('deepAirLoggedIn', 'true');
+    localStorage.setItem('deepAirUser', user.displayName || user.email);
+    localStorage.setItem('deepAirEmail', user.email);
+    localStorage.setItem('deepAirRole', role);
+    localStorage.setItem('deepAirUsername', user.email);
+}
+
+function setDemoSession(username, displayName, role) {
+    localStorage.setItem('deepAirLoggedIn', 'true');
+    localStorage.setItem('deepAirUser', displayName || username);
+    localStorage.setItem('deepAirEmail', '');
+    localStorage.setItem('deepAirRole', role || 'admin');
+    localStorage.setItem('deepAirUsername', username);
+}
+
+function clearSession() {
+    localStorage.removeItem('deepAirLoggedIn');
+    localStorage.removeItem('deepAirUser');
+    localStorage.removeItem('deepAirEmail');
+    localStorage.removeItem('deepAirRole');
+    localStorage.removeItem('deepAirUsername');
+}
+
+function isDeepAirLoggedIn() {
+    return localStorage.getItem('deepAirLoggedIn') === 'true';
+}
+
+function getDeepAirCurrentUser() {
+    return localStorage.getItem('deepAirUser') || 'Người dùng';
+}
+
+function getDeepAirCurrentUsername() {
+    return localStorage.getItem('deepAirUsername') || '';
+}
+
+function getDeepAirCurrentRole() {
+    return localStorage.getItem('deepAirRole') || '';
+}
+
+function isDeepAirAdmin() {
+    return getDeepAirCurrentRole() === 'admin';
+}
+
+// === ĐĂNG NHẬP (DEMO + FIREBASE) ===
 async function deepAirLogin(identifier, password) {
-    // BƯỚC 1: KIỂM TRA DEMO (localStorage)
+    // Kiểm tra demo
     const demoAccounts = deepAirGetAccounts();
     const demoAccount = demoAccounts.find(acc =>
         deepAirNormalize(acc.username) === deepAirNormalize(identifier) &&
         acc.password === password
     );
-
     if (demoAccount) {
-        // Đăng nhập demo thành công
         setDemoSession(demoAccount.username, demoAccount.displayName, demoAccount.role);
         return {
             success: true,
@@ -195,59 +194,21 @@ async function deepAirLogin(identifier, password) {
         };
     }
 
-    // BƯỚC 2: XÁC ĐỊNH EMAIL (nếu không phải demo)
+    // Nếu không phải email, báo lỗi
     let email = identifier;
-    let isUsername = !identifier.includes('@');
-    if (isUsername) {
-        // Nếu không phải email, báo lỗi (không tìm thấy)
+    if (!identifier.includes('@')) {
         return { success: false, message: 'Tên đăng nhập không tồn tại.' };
     }
 
-    // BƯỚC 3: ĐĂNG NHẬP FIREBASE
     try {
         const userCredential = await auth.signInWithEmailAndPassword(email, password);
-        // Khi đăng nhập Firebase thành công, set session với role từ localStorage
         setSession(userCredential.user);
         return { success: true, user: userCredential.user };
     } catch (error) {
         let message = 'Sai email hoặc mật khẩu.';
-        if (error.code === 'auth/user-not-found') {
-            message = 'Email chưa đăng ký. Vui lòng đăng ký trước.';
-        } else if (error.code === 'auth/wrong-password') {
-            message = 'Sai mật khẩu.';
-        } else if (error.code === 'auth/invalid-email') {
-            message = 'Email không hợp lệ.';
-        }
-        return { success: false, message: message };
-    }
-}
-
-// === ĐĂNG KÝ FIREBASE ===
-async function deepAirRegisterAccount(accountData) {
-    try {
-        const userCredential = await auth.createUserWithEmailAndPassword(accountData.email, accountData.password);
-        const user = userCredential.user;
-        if (accountData.displayName) {
-            await user.updateProfile({ displayName: accountData.displayName });
-        }
-        // Lưu vào localStorage (để đồng bộ danh sách admin)
-        const newAccount = {
-            username: accountData.username || accountData.email.split('@')[0],
-            password: accountData.password,
-            displayName: accountData.displayName || accountData.email,
-            role: getUserRole(accountData.email),
-            email: accountData.email,
-            recoveryCode: accountData.recoveryCode || "",
-            createdAt: new Date().toISOString().slice(0, 10)
-        };
-        deepAirAddAccount(newAccount);
-        setSession(user);
-        return { success: true, message: 'Đăng ký thành công!' };
-    } catch (error) {
-        let message = 'Đăng ký thất bại.';
-        if (error.code === 'auth/email-already-in-use') message = 'Email đã được sử dụng.';
+        if (error.code === 'auth/user-not-found') message = 'Email chưa đăng ký.';
+        else if (error.code === 'auth/wrong-password') message = 'Sai mật khẩu.';
         else if (error.code === 'auth/invalid-email') message = 'Email không hợp lệ.';
-        else if (error.code === 'auth/weak-password') message = 'Mật khẩu yếu (tối thiểu 6 ký tự).';
         return { success: false, message: message };
     }
 }
@@ -272,7 +233,36 @@ function deepAirLoginWithGoogle() {
         });
 }
 
-// === QUÊN MẬT KHẨU (FIREBASE) ===
+// === ĐĂNG KÝ ===
+async function deepAirRegisterAccount(accountData) {
+    try {
+        const userCredential = await auth.createUserWithEmailAndPassword(accountData.email, accountData.password);
+        const user = userCredential.user;
+        if (accountData.displayName) {
+            await user.updateProfile({ displayName: accountData.displayName });
+        }
+        const newAccount = {
+            username: accountData.username || accountData.email.split('@')[0],
+            password: accountData.password,
+            displayName: accountData.displayName || accountData.email,
+            role: getUserRole(accountData.email),
+            email: accountData.email,
+            recoveryCode: accountData.recoveryCode || "",
+            createdAt: new Date().toISOString().slice(0, 10)
+        };
+        deepAirAddAccount(newAccount);
+        setSession(user);
+        return { success: true, message: 'Đăng ký thành công!' };
+    } catch (error) {
+        let message = 'Đăng ký thất bại.';
+        if (error.code === 'auth/email-already-in-use') message = 'Email đã được sử dụng.';
+        else if (error.code === 'auth/invalid-email') message = 'Email không hợp lệ.';
+        else if (error.code === 'auth/weak-password') message = 'Mật khẩu yếu (tối thiểu 6 ký tự).';
+        return { success: false, message: message };
+    }
+}
+
+// === QUÊN MẬT KHẨU ===
 async function deepAirResetPassword(email) {
     try {
         await auth.sendPasswordResetEmail(email);
@@ -296,19 +286,17 @@ function deepAirLogout() {
 }
 
 // === BẢO VỆ TRANG ===
-// Lắng nghe thay đổi auth state
 auth.onAuthStateChanged(user => {
     if (user) {
-        // Nếu đăng nhập Firebase và chưa có session, set session
         if (!localStorage.getItem('deepAirLoggedIn')) {
             setSession(user);
         }
     } else {
-        // Nếu không có user Firebase, kiểm tra có đang dùng demo không
         const loggedIn = localStorage.getItem('deepAirLoggedIn');
+        const username = localStorage.getItem('deepAirUsername');
         const email = localStorage.getItem('deepAirEmail');
-        if (loggedIn && !email) {
-            // Demo session: giữ nguyên
+        if (loggedIn && username && !email) {
+            // Demo session, giữ nguyên
         } else {
             clearSession();
         }
