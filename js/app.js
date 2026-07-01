@@ -386,6 +386,431 @@ async function runPrediction() {
     }
 }
 
+
+
+// ========== ĐÁNH GIÁ MÔ HÌNH DỰ BÁO ==========
+let metricsChartInstance = null;
+
+function getMetricFieldInfo(fieldName) {
+    if (fieldName === 'temp') {
+        return { label: 'Nhiệt độ', unit: '°C' };
+    }
+    if (fieldName === 'humi') {
+        return { label: 'Độ ẩm', unit: '%' };
+    }
+    return { label: 'Bụi PM2.5', unit: 'µg/m³' };
+}
+
+function getMetricRecordValue(record, fieldName) {
+    if (!record) return null;
+
+    if (fieldName === 'dust') {
+        const value = Number(record.dust);
+        if (isNaN(value) || value <= 0) return null;
+        // Dữ liệu dust trong dashboard hiện đang đổi sang µg/m³ bằng cách nhân 1000.
+        return value * 1000;
+    }
+
+    if (fieldName === 'temp') {
+        const value = Number(record.temp);
+        if (isNaN(value)) return null;
+        return value;
+    }
+
+    if (fieldName === 'humi') {
+        const value = Number(record.humi);
+        if (isNaN(value)) return null;
+        return value;
+    }
+
+    return null;
+}
+
+function getMetricsRecords(firebaseData, fieldName, days) {
+    if (!firebaseData) return [];
+
+    const now = Date.now();
+    const startTime = days > 0 ? now - days * 24 * 3600 * 1000 : 0;
+
+    return Object.keys(firebaseData).map(key => {
+        const record = firebaseData[key];
+        const timeMs = record.time ? new Date(record.time).getTime() : null;
+        const value = getMetricRecordValue(record, fieldName);
+
+        return {
+            id: key,
+            timeMs,
+            value,
+            raw: record
+        };
+    }).filter(item => {
+        if (!item.timeMs || isNaN(item.timeMs)) return false;
+        if (item.value === null || item.value === undefined || isNaN(item.value)) return false;
+        if (days > 0 && item.timeMs < startTime) return false;
+        return true;
+    }).sort((a, b) => a.timeMs - b.timeMs);
+}
+
+function trainMetricsLinearRegression(trainRecords) {
+    const n = trainRecords.length;
+    if (n === 0) return null;
+
+    const baseTime = trainRecords[0].timeMs;
+    let sumX = 0;
+    let sumY = 0;
+    let sumXY = 0;
+    let sumXX = 0;
+
+    for (let i = 0; i < n; i++) {
+        // x tính theo phút từ mẫu đầu tiên để phù hợp dữ liệu theo thời gian.
+        const x = (trainRecords[i].timeMs - baseTime) / 60000;
+        const y = trainRecords[i].value;
+
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumXX += x * x;
+    }
+
+    const denominator = n * sumXX - sumX * sumX;
+
+    if (denominator === 0) {
+        return {
+            baseTime,
+            slope: 0,
+            intercept: sumY / n
+        };
+    }
+
+    const slope = (n * sumXY - sumX * sumY) / denominator;
+    const intercept = (sumY - slope * sumX) / n;
+
+    return { baseTime, slope, intercept };
+}
+
+function predictMetricsValue(model, timeMs, fieldName) {
+    if (!model) return null;
+    const x = (timeMs - model.baseTime) / 60000;
+    let predicted = model.slope * x + model.intercept;
+
+    // Các chỉ số môi trường này không có giá trị âm trong thực tế.
+    if (fieldName === 'dust' || fieldName === 'humi') {
+        predicted = Math.max(0, predicted);
+    }
+
+    return predicted;
+}
+
+function calculateModelMetrics(actualValues, predictedValues) {
+    const n = actualValues.length;
+    if (n === 0 || predictedValues.length === 0 || n !== predictedValues.length) return null;
+
+    let sumAbsError = 0;
+    let sumSquaredError = 0;
+    let sumPercentError = 0;
+    let sumError = 0;
+    let validMapeCount = 0;
+
+    const meanActual = actualValues.reduce((sum, value) => sum + value, 0) / n;
+    const meanPredicted = predictedValues.reduce((sum, value) => sum + value, 0) / n;
+
+    let ssRes = 0;
+    let ssTot = 0;
+    let numeratorR = 0;
+    let denominatorActual = 0;
+    let denominatorPredicted = 0;
+
+    for (let i = 0; i < n; i++) {
+        const y = actualValues[i];
+        const yHat = predictedValues[i];
+        const error = y - yHat;
+
+        sumAbsError += Math.abs(error);
+        sumSquaredError += error * error;
+        sumError += error;
+
+        if (y !== 0) {
+            sumPercentError += Math.abs(error / y);
+            validMapeCount++;
+        }
+
+        ssRes += error * error;
+        ssTot += Math.pow(y - meanActual, 2);
+        numeratorR += (y - meanActual) * (yHat - meanPredicted);
+        denominatorActual += Math.pow(y - meanActual, 2);
+        denominatorPredicted += Math.pow(yHat - meanPredicted, 2);
+    }
+
+    return {
+        MAE: sumAbsError / n,
+        RMSE: Math.sqrt(sumSquaredError / n),
+        MAPE: validMapeCount > 0 ? (sumPercentError / validMapeCount) * 100 : null,
+        ME: sumError / n,
+        R2: ssTot !== 0 ? 1 - (ssRes / ssTot) : null,
+        r: (denominatorActual !== 0 && denominatorPredicted !== 0)
+            ? numeratorR / Math.sqrt(denominatorActual * denominatorPredicted)
+            : null
+    };
+}
+
+function formatMetricValue(value, digits = 4) {
+    if (value === null || value === undefined || isNaN(value)) {
+        return 'Không tính được';
+    }
+    return Number(value).toFixed(digits);
+}
+
+function renderMetricsTable(metrics, unit) {
+    const tbody = document.getElementById('metricsTableBody');
+    if (!tbody) return;
+
+    if (!metrics) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="3" class="text-center text-muted py-4">Không tính được chỉ số đánh giá.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = `
+        <tr>
+            <td><strong>MAE</strong></td>
+            <td>${formatMetricValue(metrics.MAE)} ${unit}</td>
+            <td>Sai số tuyệt đối trung bình. Giá trị càng nhỏ thì mô hình dự báo càng chính xác.</td>
+        </tr>
+        <tr>
+            <td><strong>RMSE</strong></td>
+            <td>${formatMetricValue(metrics.RMSE)} ${unit}</td>
+            <td>Căn bậc hai sai số bình phương trung bình. Chỉ số này nhạy với các sai số lớn.</td>
+        </tr>
+        <tr>
+            <td><strong>MAPE</strong></td>
+            <td>${formatMetricValue(metrics.MAPE)}%</td>
+            <td>Sai số phần trăm tuyệt đối trung bình, dùng để so sánh mức sai lệch tương đối.</td>
+        </tr>
+        <tr>
+            <td><strong>ME</strong></td>
+            <td>${formatMetricValue(metrics.ME)} ${unit}</td>
+            <td>Sai số trung bình có dấu. ME dương là dự báo thấp hơn thực tế, ME âm là dự báo cao hơn thực tế.</td>
+        </tr>
+        <tr>
+            <td><strong>R²</strong></td>
+            <td>${formatMetricValue(metrics.R2)}</td>
+            <td>Hệ số xác định, cho biết mức độ mô hình giải thích được sự biến thiên của dữ liệu thực tế.</td>
+        </tr>
+        <tr>
+            <td><strong>r</strong></td>
+            <td>${formatMetricValue(metrics.r)}</td>
+            <td>Hệ số tương quan tuyến tính giữa chuỗi giá trị thực tế và chuỗi giá trị dự báo.</td>
+        </tr>
+    `;
+}
+
+function renderMetricsDetailTable(testRecords, predictedValues, unit) {
+    const tbody = document.getElementById('metricsDetailBody');
+    if (!tbody) return;
+
+    if (!testRecords.length) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted py-4">Không có dữ liệu chi tiết.</td>
+            </tr>
+        `;
+        return;
+    }
+
+    const maxRows = 30;
+    const startIndex = Math.max(0, testRecords.length - maxRows);
+    const visibleRecords = testRecords.slice(startIndex);
+    const visiblePredicted = predictedValues.slice(startIndex);
+
+    tbody.innerHTML = visibleRecords.map((record, index) => {
+        const actual = record.value;
+        const predicted = visiblePredicted[index];
+        const error = actual - predicted;
+
+        return `
+            <tr>
+                <td>${moment(record.timeMs).format('DD/MM/YYYY HH:mm')}</td>
+                <td>${formatMetricValue(actual, 2)} ${unit}</td>
+                <td>${formatMetricValue(predicted, 2)} ${unit}</td>
+                <td>${formatMetricValue(error, 2)} ${unit}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function renderMetricsChart(testRecords, predictedValues, fieldInfo) {
+    const canvas = document.getElementById('metricsChart');
+    if (!canvas) return;
+
+    const labels = testRecords.map(record => moment(record.timeMs).format('HH:mm DD/MM'));
+    const actualValues = testRecords.map(record => record.value);
+
+    if (metricsChartInstance) {
+        metricsChartInstance.destroy();
+    }
+
+    metricsChartInstance = new Chart(canvas, {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: `${fieldInfo.label} thực tế (${fieldInfo.unit})`,
+                    data: actualValues,
+                    borderColor: '#2563eb',
+                    backgroundColor: 'rgba(37, 99, 235, 0.12)',
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    tension: 0.35
+                },
+                {
+                    label: `${fieldInfo.label} dự báo (${fieldInfo.unit})`,
+                    data: predictedValues,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+                    borderWidth: 3,
+                    pointRadius: 4,
+                    borderDash: [8, 5],
+                    tension: 0.35
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: { display: true },
+                tooltip: {
+                    mode: 'index',
+                    intersect: false
+                }
+            },
+            interaction: {
+                mode: 'nearest',
+                axis: 'x',
+                intersect: false
+            },
+            scales: {
+                x: {
+                    ticks: { maxRotation: 45, minRotation: 0 }
+                },
+                y: {
+                    beginAtZero: false
+                }
+            }
+        }
+    });
+}
+
+async function runMetricsEvaluation() {
+    const fieldSelect = document.getElementById('metricsField');
+    const daysSelect = document.getElementById('metricsDays');
+    const messageDiv = document.getElementById('metricsMessage');
+    const summaryDiv = document.getElementById('metricsSummary');
+
+    if (!fieldSelect || !daysSelect || !messageDiv) return;
+
+    const fieldName = fieldSelect.value;
+    const days = Number(daysSelect.value);
+    const fieldInfo = getMetricFieldInfo(fieldName);
+
+    messageDiv.innerHTML = `
+        <div class="alert alert-primary shadow-sm">
+            <i class="fas fa-spinner fa-spin me-2"></i>
+            Đang lấy dữ liệu Firebase và tính chỉ số đánh giá...
+        </div>
+    `;
+
+    if (summaryDiv) summaryDiv.style.display = 'none';
+
+    try {
+        const firebaseData = await fetchFirebaseData();
+
+        if (!firebaseData) {
+            messageDiv.innerHTML = `
+                <div class="alert alert-danger shadow-sm">
+                    <i class="fas fa-triangle-exclamation me-2"></i>
+                    Không lấy được dữ liệu từ Firebase.
+                </div>
+            `;
+            return;
+        }
+
+        const records = getMetricsRecords(firebaseData, fieldName, days);
+
+        if (records.length < 10) {
+            messageDiv.innerHTML = `
+                <div class="alert alert-warning shadow-sm">
+                    <i class="fas fa-circle-exclamation me-2"></i>
+                    Không đủ dữ liệu hợp lệ để đánh giá. Cần ít nhất 10 bản ghi.
+                </div>
+            `;
+            renderMetricsTable(null, fieldInfo.unit);
+            renderMetricsDetailTable([], [], fieldInfo.unit);
+            return;
+        }
+
+        const trainSize = Math.floor(records.length * 0.8);
+        const trainRecords = records.slice(0, trainSize);
+        const testRecords = records.slice(trainSize);
+
+        if (trainRecords.length < 5 || testRecords.length < 2) {
+            messageDiv.innerHTML = `
+                <div class="alert alert-warning shadow-sm">
+                    <i class="fas fa-circle-exclamation me-2"></i>
+                    Dữ liệu chưa đủ để chia tập huấn luyện và tập kiểm tra.
+                </div>
+            `;
+            return;
+        }
+
+        const model = trainMetricsLinearRegression(trainRecords);
+        const predictedValues = testRecords.map(record => predictMetricsValue(model, record.timeMs, fieldName));
+        const actualValues = testRecords.map(record => record.value);
+        const metrics = calculateModelMetrics(actualValues, predictedValues);
+
+        renderMetricsTable(metrics, fieldInfo.unit);
+        renderMetricsDetailTable(testRecords, predictedValues, fieldInfo.unit);
+        renderMetricsChart(testRecords, predictedValues, fieldInfo);
+
+        const totalEl = document.getElementById('metricsTotalSamples');
+        const trainEl = document.getElementById('metricsTrainSamples');
+        const testEl = document.getElementById('metricsTestSamples');
+        if (totalEl) totalEl.innerText = records.length;
+        if (trainEl) trainEl.innerText = trainRecords.length;
+        if (testEl) testEl.innerText = testRecords.length;
+        if (summaryDiv) summaryDiv.style.display = 'flex';
+
+        messageDiv.innerHTML = `
+            <div class="alert alert-success shadow-sm">
+                <i class="fas fa-check-circle me-2"></i>
+                Đã đánh giá mô hình cho chỉ số <strong>${fieldInfo.label}</strong>. Dữ liệu được chia theo tỷ lệ 80% huấn luyện và 20% kiểm tra.
+            </div>
+        `;
+    } catch (error) {
+        console.error('Lỗi đánh giá mô hình:', error);
+        messageDiv.innerHTML = `
+            <div class="alert alert-danger shadow-sm">
+                <i class="fas fa-triangle-exclamation me-2"></i>
+                Lỗi khi đánh giá mô hình. Vui lòng kiểm tra cấu hình Firebase hoặc dữ liệu đầu vào.
+            </div>
+        `;
+    }
+}
+
+function initMetricsEvaluation() {
+    const metricsForm = document.getElementById('metricsForm');
+    if (!metricsForm) return;
+
+    metricsForm.addEventListener('submit', function (event) {
+        event.preventDefault();
+        runMetricsEvaluation();
+    });
+}
+
 // ========== CÁC HÀM HỖ TRỢ KHÁC ==========
 function filterOutliers(data, windowSize = 3, threshold = 3) {
     if (data.length <= windowSize) return data.slice();
@@ -455,6 +880,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     initSortHandlers();
+    initMetricsEvaluation();
 
     setInterval(() => {
         if (document.getElementById('current-tab').classList.contains('active')) {
